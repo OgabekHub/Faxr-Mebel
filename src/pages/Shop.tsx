@@ -306,7 +306,7 @@ export const Shop = () => {
                         <span className="price-tag text-xl font-bold">{formatPrice(product.price)}</span>
                         <button 
                           onClick={() => handleAddToCart(product)}
-                          className="bg-brand-gold text-black p-3.5 rounded-xl hover:scale-110 active:scale-95 transition-all shadow-md shadow-brand-gold/15"
+                          className="bg-brand-gold text-black p-3.5 rounded-xl flex items-center justify-center hover:-translate-y-1 hover:shadow-lg hover:shadow-brand-gold/30 active:scale-95 transition-all duration-300 will-change-transform shadow-md shadow-brand-gold/15"
                         >
                           <ShoppingCart className="w-4 h-4" />
                         </button>
