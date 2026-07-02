@@ -373,7 +373,7 @@ export const Shop = () => {
       {createPortal(
         <AnimatePresence>
           {quickViewProduct && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 overflow-y-auto">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center md:px-4 overflow-y-auto">
               {/* Backdrop layer */}
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -388,18 +388,18 @@ export const Shop = () => {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="bg-background border border-foreground/5 rounded-[2.5rem] w-full max-w-4xl p-8 relative z-10 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[90vh] overflow-y-auto overflow-x-hidden"
+                className="bg-background border-0 md:border border-foreground/5 rounded-none md:rounded-[2.5rem] w-full max-w-4xl p-5 md:p-8 relative z-10 shadow-2xl flex flex-col md:grid md:grid-cols-2 gap-6 md:gap-8 min-h-[100dvh] md:min-h-0 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto overflow-x-hidden"
               >
                 {/* Close trigger button */}
                 <button 
                   onClick={() => setQuickViewProduct(null)}
-                  className="absolute right-6 top-6 p-2 rounded-full hover:bg-foreground/5 transition-colors z-20 text-foreground"
+                  className="absolute right-4 top-4 md:right-6 md:top-6 p-2 rounded-full bg-background/50 backdrop-blur-md md:bg-transparent hover:bg-foreground/5 transition-colors z-20 text-foreground"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
                 {/* Left Side Visual Preview */}
-                <div className="w-full h-[320px] md:h-[420px] rounded-3xl overflow-hidden relative bg-foreground/5">
+                <div className="w-full h-[260px] sm:h-[320px] md:h-[420px] rounded-2xl md:rounded-3xl overflow-hidden relative bg-foreground/5 shrink-0">
                   <img src={quickViewProduct.image} alt={t('product.' + quickViewProduct.id + '.name')} className="w-full h-full object-cover" />
                   <div className="absolute top-4 left-4 glass px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-foreground">
                     {t('shop.category.' + quickViewProduct.category)}
@@ -410,9 +410,9 @@ export const Shop = () => {
                 <div className="flex-grow flex flex-col justify-between">
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-widest text-brand-gold block mb-1">{t('shop.modal.artisanBlock')}</span>
-                    <h3 className="text-2xl font-editorial-title font-bold text-foreground mb-3">{t('product.' + quickViewProduct.id + '.name')}</h3>
+                    <h3 className="text-xl md:text-2xl font-editorial-title font-bold text-foreground mb-3">{t('product.' + quickViewProduct.id + '.name')}</h3>
                     
-                    <div className="flex items-center gap-4 text-[10px] uppercase font-bold text-foreground/45 tracking-wider mb-4 pb-3 border-b border-foreground/5">
+                    <div className="flex flex-wrap items-center gap-4 text-[10px] uppercase font-bold text-foreground/45 tracking-wider mb-4 pb-3 border-b border-foreground/5">
                       <span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-current text-brand-gold" /> {quickViewProduct.rating} {t('shop.modal.ratingLabel')}</span>
                       <span>{t('shop.product.sizeLabel')} <strong className="text-foreground">{quickViewProduct.size}</strong></span>
                     </div>
@@ -422,7 +422,7 @@ export const Shop = () => {
                     </p>
 
                     {/* Wood and Upholstery Selection Controls inside Modal - Side by Side Grid */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6">
                       <div className="flex flex-col justify-between h-full">
                         <label className="text-[9px] font-black uppercase tracking-widest text-foreground/40 block mb-2">{t('shop.modal.woodLabel')}</label>
                         <CustomSelect 
@@ -453,8 +453,8 @@ export const Shop = () => {
                     </div>
                   </div>
 
-                  <div className="pt-5 border-t border-foreground/5 space-y-4">
-                    <div className="flex items-center justify-between gap-4">
+                  <div className="pt-4 border-t border-foreground/5 space-y-4 mt-auto">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex flex-col">
                         <span className="text-[9px] uppercase font-black tracking-widest text-foreground/40">{t('shop.modal.totalPrice')}</span>
                         <span className="price-tag text-2xl font-bold">{formatPrice(quickViewProduct.price)}</span>
@@ -462,7 +462,7 @@ export const Shop = () => {
                       
                       <button 
                         onClick={() => handleAddToCart(quickViewProduct, true)}
-                        className="px-6 bg-brand-gold text-black py-3.5 rounded-2xl font-extrabold text-[10px] uppercase tracking-hero hover:bg-brand-gold-muted transition-colors shadow-lg shadow-brand-gold/15 flex items-center justify-center gap-2 whitespace-nowrap"
+                        className="w-full sm:w-auto px-6 bg-brand-gold text-black py-3.5 rounded-2xl font-extrabold text-[10px] uppercase tracking-hero hover:bg-brand-gold-muted transition-colors shadow-lg shadow-brand-gold/15 flex items-center justify-center gap-2"
                       >
                         <ShoppingCart className="w-4 h-4" /> {t('common.addToCart')}
                       </button>
