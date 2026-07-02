@@ -139,7 +139,7 @@ export const Contact = () => {
         </div>
 
         {/* Right Side: Form selector message/appointment */}
-        <div className="lg:col-span-7 bg-white dark:bg-white/5 bento-card p-8 md:p-10 border border-foreground/5 shadow-xl overflow-visible">
+        <div className="lg:col-span-7 bg-white dark:bg-white/5 bento-card p-8 md:p-10 border border-foreground/5 shadow-xl !overflow-visible">
           {isSuccess ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
