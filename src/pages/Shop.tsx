@@ -270,21 +270,21 @@ export const Shop = () => {
                         <button 
                           onClick={() => handleToggleWishlist(product)}
                           className={cn(
-                            "p-2.5 rounded-full shadow-lg backdrop-blur-md",
-                            isInWishlist(product.id) ? "bg-red-500 text-white" : "bg-white/80 dark:bg-black/50 text-foreground hover:scale-110"
+                            "p-2.5 rounded-full shadow-lg glass",
+                            isInWishlist(product.id) ? "bg-red-500 text-white" : "text-foreground hover:scale-110"
                           )}
                         >
                           <Heart className="w-3.5 h-3.5 fill-current" />
                         </button>
                         <button 
                           onClick={() => setQuickViewProduct(product)}
-                          className="p-2.5 bg-white/80 dark:bg-black/50 backdrop-blur-md text-foreground rounded-full shadow-lg hover:scale-110"
+                          className="p-2.5 glass text-foreground rounded-full shadow-lg hover:scale-110"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       
-                      <div className="absolute top-4 left-4 bg-white/80 dark:bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest text-foreground z-30">
+                      <div className="absolute top-4 left-4 glass px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest text-foreground z-30">
                         {t('shop.category.' + product.category)}
                       </div>
                     </div>
