@@ -232,23 +232,24 @@ export const Shop = () => {
 
         {/* Right Product Grid */}
         <div className="lg:col-span-3">
+          <AnimatePresence mode="wait">
           <motion.div 
-            layout
+            key={viewType}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
             className={cn(
-              "transition-all duration-500",
               viewType === 'grid' 
                 ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" 
                 : "flex flex-col gap-6"
             )}
           >
-          <AnimatePresence mode="popLayout">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product, index) => (
               <motion.div
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.04 }}
                 key={product.id}
                 className="flex flex-col"
               >
@@ -353,8 +354,8 @@ export const Shop = () => {
                 )}
               </motion.div>
             ))}
+          </motion.div>
           </AnimatePresence>
-        </motion.div>
           
           {filteredProducts.length === 0 && (
             <div className="flex flex-col items-center justify-center py-40 bento-card border-dashed">
