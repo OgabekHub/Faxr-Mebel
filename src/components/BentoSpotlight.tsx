@@ -9,6 +9,11 @@ interface BentoSpotlightProps {
 export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, className = '' }) => {
   const ref = useRef<HTMLDivElement>(null);
   
+  // Check if device supports hover to disable 3D tilt on touch devices
+  const [isHoverable] = useState(() => 
+    typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : true
+  );
+  
   // Spotlight coordinates relative to the card element
   const [coords, setCoords] = useState({ x: 0, y: 0 });
 
@@ -21,7 +26,7 @@ export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, classN
   const rotateY = useSpring(useTransform(x, [0, 1], [-6, 6]), { stiffness: 180, damping: 22 });
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
+    if (!isHoverable || !ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     
     // Coords relative to card
@@ -37,6 +42,7 @@ export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, classN
   };
 
   const handleMouseLeave = () => {
+    if (!isHoverable) return;
     // Reset card tilt to center on mouse leave
     x.set(0.5);
     y.set(0.5);
@@ -48,10 +54,12 @@ export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, classN
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{
-        rotateX: rotateX,
-        rotateY: rotateY,
-        transformStyle: 'preserve-3d',
-        perspective: 1000,
+        ...(isHoverable ? {
+          rotateX: rotateX,
+          rotateY: rotateY,
+          transformStyle: 'preserve-3d',
+          perspective: 1000,
+        } : {}),
         // Custom properties mapped to CSS radial spotlight
         // @ts-ignore
         '--mouse-x': `${coords.x}px`,
@@ -60,7 +68,10 @@ export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, classN
       }}
       className={`bento-spotlight ${className}`}
     >
-      <div style={{ transform: 'translateZ(0px)', transformStyle: 'preserve-3d', position: 'relative', zIndex: 15 }} className="h-full w-full flex flex-col">
+      <div 
+        style={isHoverable ? { transform: 'translateZ(0px)', transformStyle: 'preserve-3d', position: 'relative', zIndex: 15 } : { position: 'relative', zIndex: 15 }} 
+        className="h-full w-full flex flex-col"
+      >
         {children}
       </div>
     </motion.div>
