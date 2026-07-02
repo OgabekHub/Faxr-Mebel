@@ -139,7 +139,7 @@ export const Contact = () => {
         </div>
 
         {/* Right Side: Form selector message/appointment */}
-        <div className="lg:col-span-7 bg-white dark:bg-white/5 bento-card p-8 md:p-10 border border-foreground/5 shadow-xl">
+        <div className="lg:col-span-7 bg-white dark:bg-white/5 bento-card p-8 md:p-10 border border-foreground/5 shadow-xl overflow-visible">
           {isSuccess ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -265,7 +265,7 @@ export const Contact = () => {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
-                            className="absolute top-full left-0 w-full mt-2 p-2 glass border border-foreground/10 rounded-xl overflow-hidden z-20 shadow-xl flex flex-col gap-1"
+                            className="absolute top-full left-0 w-full mt-2 p-2 bg-background border border-brand-gold/30 rounded-xl z-50 shadow-2xl shadow-brand-gold/10 flex flex-col gap-1 max-h-60 overflow-y-auto"
                           >
                             {availableTimes.map((time) => (
                               <button
