@@ -259,7 +259,7 @@ export const Shop = () => {
                       <img 
                         src={product.image} 
                         alt={t('product.' + product.id + '.name')} 
-                        className="w-full h-full object-cover group-hover:scale-105" 
+                        className="w-full h-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-105" 
                       />
                       
                       {/* Subtle dark overlay on hover — only on the image */}
@@ -315,8 +315,8 @@ export const Shop = () => {
                   </BentoSpotlight>
                 ) : (
                   <div className="bento-card glow-tracer p-6 flex flex-col md:flex-row items-center gap-8 group w-full">
-                    <div className="w-48 h-48 rounded-2xl overflow-hidden shrink-0 relative mx-auto md:mx-0">
-                      <img src={product.image} alt={t('product.' + product.id + '.name')} className="w-full h-full object-cover group-hover:scale-105" />
+                    <div className="w-1/3 min-w-[140px] md:min-w-[200px] h-full relative overflow-hidden shrink-0">
+                      <img src={product.image} alt={t('product.' + product.id + '.name')} className="w-full h-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-105" />
                       <div className="absolute top-2 left-2 glass px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-foreground">
                         {t('shop.category.' + product.category)}
                       </div>
