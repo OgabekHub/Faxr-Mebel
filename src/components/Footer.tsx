@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Facebook, Instagram, Send, Phone, Mail, MapPin, ArrowRight, ShieldCheck, Award } from 'lucide-react';
+import { Facebook, Instagram, Send, Phone, Mail, MapPin, ArrowRight, Award } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 

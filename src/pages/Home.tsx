@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Star, Shield, Award, MapPin, Clock, Phone, Send, Info, Check, QrCode, Smartphone, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
+import { ArrowRight, Star, Shield, MapPin, Clock, Phone, Send, Check, QrCode, Smartphone, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../lib/utils';
 import { useCart } from '../context/CartContext';
@@ -11,8 +11,24 @@ import { BespokeModal } from '../components/BespokeModal';
 import { BentoSpotlight } from '../components/BentoSpotlight';
 import { SEO } from '../components/SEO';
 
+interface HeroSlide {
+  image: string;
+  collectionKey: string;
+  ctaLink: string;
+  /** Either translation keys... */
+  titleKey?: string;
+  titleGoldKey?: string;
+  /** ...or inline per-language titles (moved to i18n keys in Faza 5). */
+  titleUz?: string;
+  titleRu?: string;
+  titleEn?: string;
+  titleGoldUz?: string;
+  titleGoldRu?: string;
+  titleGoldEn?: string;
+}
+
 // Immersive Hero slides data
-const heroSlides = [
+const heroSlides: HeroSlide[] = [
   {
     image: '/images/sofa.png',
     collectionKey: 'home.hero.collection',
@@ -72,10 +88,12 @@ const featuredProducts = [
   }
 ];
 
+type FeaturedProduct = (typeof featuredProducts)[number];
+
 export const Home = () => {
   const { t, i18n } = useTranslation();
   const { addToCart } = useCart();
-  const { wishlist, toggleWishlist, isInWishlist } = useWishlist();
+  const { toggleWishlist, isInWishlist } = useWishlist();
 
   const [addedToast, setAddedToast] = useState<string | null>(null);
   const [isAROpen, setIsAROpen] = useState(false);
@@ -103,7 +121,7 @@ export const Home = () => {
     setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
   };
 
-  const getSlideTexts = (slide: typeof heroSlides[0]) => {
+  const getSlideTexts = (slide: HeroSlide) => {
     const lang = i18n.language || 'uz';
     let collection = '';
     let title = '';
@@ -130,16 +148,23 @@ export const Home = () => {
     return { collection, title, titleGold };
   };
 
-  const handleAddToCart = (product: any) => {
-    addToCart(product);
-    setAddedToast(t(`product.${product.id}.name`));
+  const handleAddToCart = (product: FeaturedProduct) => {
+    const name = t(`product.${product.id}.name`);
+    addToCart({
+      id: product.id,
+      name,
+      price: product.price,
+      image: product.image,
+      category: t(`shop.category.${product.category}`),
+    });
+    setAddedToast(name);
     setTimeout(() => setAddedToast(null), 3000);
   };
 
   const currentSlideData = heroSlides[currentSlide];
   const { collection: sCollection, title: sTitle, titleGold: sTitleGold } = getSlideTexts(currentSlideData);
 
-  const handleToggleWishlist = (product: any, e: React.MouseEvent) => {
+  const handleToggleWishlist = (product: FeaturedProduct, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     toggleWishlist({
@@ -507,7 +532,6 @@ export const Home = () => {
         isOpen={isAROpen}
         onClose={() => setIsAROpen(false)}
         productName={t(`product.${featuredProducts[0].id}.name`)}
-        productImage={featuredProducts[0].image}
         productId={featuredProducts[0].id}
       />
 

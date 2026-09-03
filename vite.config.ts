@@ -1,25 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { defineConfig, loadEnv } from 'vite';
+import { notifyDevPlugin } from './vite-plugins/notifyDev';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
+export default defineConfig(({ mode }) => {
+  // The empty prefix loads every variable (not only VITE_*) so the dev-only
+  // /api/notify middleware can read the server-side Telegram credentials.
+  // Vite still exposes only VITE_* keys to the browser bundle.
+  const env = loadEnv(mode, process.cwd(), '');
   return {
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'import.meta.env.VITE_APP_URL': JSON.stringify(env.VITE_APP_URL || 'https://faxr-mebel.vercel.app'),
-    },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
+    plugins: [react(), tailwindcss(), notifyDevPlugin(env)],
   };
 });

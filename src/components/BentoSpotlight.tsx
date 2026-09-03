@@ -61,9 +61,7 @@ export const BentoSpotlight: React.FC<BentoSpotlightProps> = ({ children, classN
           perspective: 1000,
         } : {}),
         // Custom properties mapped to CSS radial spotlight
-        // @ts-ignore
         '--mouse-x': `${coords.x}px`,
-        // @ts-ignore
         '--mouse-y': `${coords.y}px`,
       }}
       className={`bento-spotlight ${className}`}

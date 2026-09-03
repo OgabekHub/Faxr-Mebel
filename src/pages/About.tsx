@@ -1,7 +1,6 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
-import { Award, Compass, Heart, Users, Sparkles } from 'lucide-react';
+import { Award, Compass, Sparkles } from 'lucide-react';
 
 const historyTimeline = [
   { year: '1996', id: 'step1' },

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
-import { sendTelegramMessage } from '../services/telegram';
-import { Mail, Phone, MapPin, Send, CheckCircle2, Calendar, Clock, ChevronDown, Award } from 'lucide-react';
+import { postNotify } from '../services/notify';
+import { Mail, Phone, MapPin, Send, CheckCircle2, ChevronDown, Award } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const availableTimes = ['09:00', '11:00', '14:00', '16:00', '18:00'];
@@ -37,32 +37,19 @@ export const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    let message = '';
-    if (activeFormTab === 'message') {
-      message = `
-📩 <b>YANGI MUROJAAT / NEW MESSAGE</b> 📩
-
-👤 <b>Ism / Name:</b> ${formData.name}
-📱 <b>Telefon / Phone:</b> ${formData.phone}
-💬 <b>Xabar / Message:</b> ${formData.message}
-📅 <b>Sana / Date:</b> ${new Date().toLocaleString('uz-UZ')}
-`;
-    } else {
-      message = `
-🗓️ <b>YANGI SHOWROOM TASHRIFI / NEW APPOINTMENT</b> 🗓️
-
-👤 <b>Mijoz / Client:</b> ${formData.name}
-📱 <b>Telefon / Phone:</b> ${formData.phone}
-📅 <b>Tashrif kuni / Day:</b> ${formData.date}
-⏰ <b>Tashrif vaqti / Time:</b> ${formData.time}
-📅 <b>Sana / Date:</b> ${new Date().toLocaleString('uz-UZ')}
-`;
-    }
-
-    const result = await sendTelegramMessage(message);
+    // The message text itself is built server-side (api/_lib/notify.ts) with HTML escaping.
+    const result = activeFormTab === 'message'
+      ? await postNotify({
+          kind: 'contact',
+          payload: { name: formData.name, phone: formData.phone, message: formData.message },
+        })
+      : await postNotify({
+          kind: 'appointment',
+          payload: { name: formData.name, phone: formData.phone, date: formData.date, time: formData.time },
+        });
     setIsSubmitting(false);
 
-    if (result.success) {
+    if (result.ok) {
       setIsSuccess(true);
       setFormData({ name: '', phone: '', message: '', date: '', time: '' });
       setTimeout(() => {

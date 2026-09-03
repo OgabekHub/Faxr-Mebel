@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, LogOut, Heart, Shield, ShoppingBag, Send, Award, Clock, CheckCircle } from 'lucide-react';
+import { LogOut, Heart, ShoppingBag, Send, Award, Clock, CheckCircle } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { formatPrice } from '../lib/utils';
+import { cn, formatPrice } from '../lib/utils';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '../context/ThemeContext';
 import { CustomSelect } from '../components/CustomSelect';
 import { useWishlist } from '../context/WishlistContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import type { Order } from '../types/domain';
 
 export const Profile = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { wishlist } = useWishlist();
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist'>('orders');
 
   // Real Orders State
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -38,14 +38,14 @@ export const Profile = () => {
         );
 
         unsubscribeOrders = onSnapshot(q, (snapshot) => {
-          const fetchedOrders = snapshot.docs.map(doc => ({
+          const fetchedOrders: Order[] = snapshot.docs.map(doc => ({
+            ...(doc.data() as Omit<Order, 'id'>),
             id: doc.id,
-            ...doc.data()
           }));
-          
+
           // Sort by date (newest first)
-          fetchedOrders.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          
+          fetchedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
           setOrders(fetchedOrders);
           if (fetchedOrders.length > 0) {
             setSelectedOrderId(prev => prev || fetchedOrders[0].id);
@@ -57,31 +57,10 @@ export const Profile = () => {
         });
 
       } else {
-        // Fallback for demo mode
-        setUser({
-          displayName: 'Alisher Navoiy',
-          email: 'alisher@prestige.com',
-          photoURL: 'https://i.pravatar.cc/150?u=9',
-          phoneNumber: '+998 90 123 45 67'
-        });
-
-        const demoOrders = [
-          {
-            id: 'ORD-2026-904',
-            date: '2026-05-15T12:00:00.000Z',
-            total: 12650000,
-            items: [{ name: 'Royal Velvet Sofa', quantity: 1, bespokeDetails: { wood: 'Walnut (Yong\'oq)', fabric: 'Italiya Baxmali' } }],
-            addons: { premiumBox: true, artisanCert: false },
-            status: 'artisan',
-            paymentMethod: 'click_payme',
-            paymentStatus: 'paid',
-            client: 'Alisher Navoiy',
-            phone: '+998 90 123 45 67',
-            address: 'Toshkent shahar'
-          }
-        ];
-        setOrders(demoOrders);
-        setSelectedOrderId('ORD-2026-904');
+        // Signed out: ProtectedRoute redirects to /auth, so nothing to show here.
+        setUser(null);
+        setOrders([]);
+        setSelectedOrderId(null);
         setOrdersLoading(false);
       }
       setLoading(false);
@@ -106,8 +85,8 @@ export const Profile = () => {
     const order = orders.find(o => o.id === selectedOrderId);
     if (!order) return null;
 
-    const itemNames = order.items?.map((it: any) => `${it.name} (x${it.quantity})`).join(', ') || 'Faxr Mebel Mahsuloti';
-    const firstBespoke = order.items?.find((it: any) => it.bespokeDetails);
+    const itemNames = order.items?.map((it) => `${it.name} (x${it.quantity})`).join(', ') || 'Faxr Mebel Mahsuloti';
+    const firstBespoke = order.items?.find((it) => it.bespokeDetails);
     const wood = firstBespoke?.bespokeDetails?.wood || 'Walnut (Yong\'oq)';
     const fabric = firstBespoke?.bespokeDetails?.fabric || 'Italiya Baxmali';
     const packaging = order.addons?.premiumBox ? t('profile.packagingWood', 'Yog\'och quti') : t('profile.packagingStandard', 'Standart qadoq');

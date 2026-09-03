@@ -1,7 +1,8 @@
 import React from 'react';
-import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
+import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from 'react-error-boundary';
 
-const ErrorFallback = ({ error, resetErrorBoundary }: any) => {
+const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
+  const message = error instanceof Error ? error.message : String(error);
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background text-center">
       <div className="bento-card p-8 max-w-lg border-red-500/20 glow-tracer">
@@ -10,7 +11,7 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => {
           Ilovada kutilmagan xatolik yuz berdi. Iltimos, sahifani yangilang yoki asosiy sahifaga qayting.
         </p>
         <pre className="text-left text-[10px] text-red-400 bg-red-500/10 p-4 rounded-xl overflow-auto mb-6">
-          {error.message}
+          {message}
         </pre>
         <div className="flex gap-4 justify-center">
           <button 

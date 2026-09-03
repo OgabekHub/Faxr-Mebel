@@ -4,10 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowRight, ArrowLeft, Ruler, Sparkles, Send, ShieldCheck, CheckCircle2, MessageSquareCode } from 'lucide-react';
 import { formatPrice } from '../lib/utils';
 import { createPortal } from 'react-dom';
-import { sendTelegramMessage } from '../services/telegram';
-
-
-
+import { postNotify } from '../services/notify';
 
 interface BespokeModalProps {
   isOpen: boolean;
@@ -35,6 +32,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedOrderId, setSubmittedOrderId] = useState('');
 
   // Reset modal state on open
   useEffect(() => {
@@ -49,6 +47,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
       setUserPhone('');
       setIsSubmitting(false);
       setSubmitted(false);
+      setSubmittedOrderId('');
     }
   }, [isOpen]);
 
@@ -57,7 +56,6 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
   const rawPrice = product.price * (volumeMultiplier < 1 ? 1 : volumeMultiplier);
   const woodPremium = wood === 'walnut' ? 1.15 : wood === 'oak' ? 1.1 : 1.0;
   const fabricPremium = fabric === 'leather' ? 1.25 : 1.0;
-  const deliveryPremium = delivery === 'luxe' ? 0 : 0; // standard or free VIP
   const finalPrice = Math.round(rawPrice * woodPremium * fabricPremium);
 
   const handleNext = () => setStep(step + 1);
@@ -67,50 +65,34 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
     e.preventDefault();
     if (!userName || !userPhone) return;
 
+    // One id per submission: shown on the receipt and sent to the ops chat.
+    const orderId = `BESPOKE-${Math.floor(1000 + Math.random() * 9000)}`;
+    setSubmittedOrderId(orderId);
     setIsSubmitting(true);
 
-    const message = `
-👑 <b>YANGI VIP CONCIERGE BUYURTMA</b> 👑
-
-🎨 <b>Mahsulot:</b> ${t('product.' + product.id + '.name')}
-📐 <b>O'lchamlari:</b> ${length}cm x ${width}cm
-🪵 <b>Yog'och turi:</b> ${wood.toUpperCase()}
-🧵 <b>Mato turi:</b> ${fabric.toUpperCase()}
-🚚 <b>Yetkazish darajasi:</b> ${delivery === 'luxe' ? '🌟 LUXE CONCIERGE' : 'STANDARD'}
-
-👤 <b>Mijoz:</b> ${userName}
-📱 <b>Telefon:</b> ${userPhone}
-
-💰 <b>Taxminiy VIP narx:</b> <b>${formatPrice(finalPrice)}</b>
-📅 <b>Sana:</b> ${new Date().toLocaleString('uz-UZ')}
-`;
-
-    const result = await sendTelegramMessage(message);
+    // The message text is built server-side (api/_lib/notify.ts) with HTML escaping.
+    const result = await postNotify({
+      kind: 'bespoke',
+      payload: {
+        orderId,
+        productName: t('product.' + product.id + '.name'),
+        length,
+        width,
+        wood,
+        fabric,
+        delivery: delivery === 'luxe' ? 'luxe' : 'standard',
+        name: userName,
+        phone: userPhone,
+        estimatedPrice: finalPrice,
+      },
+    });
     setIsSubmitting(false);
 
-    if (result.success) {
+    if (result.ok) {
       setSubmitted(true);
     } else {
       alert("Xatolik yuz berdi. Iltimos, ma'lumotlarni tekshiring va qayta urinib ko'ring.");
     }
-  };
-
-  const getBespokeJSON = () => {
-    return JSON.stringify({
-      orderId: `BESPOKE-${Math.floor(1000 + Math.random() * 9000)}`,
-      productName: t('product.' + product.id + '.name'),
-      dimensions: `${length}cm x ${width}cm`,
-      materialSelection: {
-        woodType: wood.toUpperCase(),
-        fabricType: fabric.toUpperCase()
-      },
-      deliveryTier: delivery === 'luxe' ? 'LUXE CONCIERGE' : 'STANDARD',
-      customerContact: {
-        name: userName,
-        phone: userPhone
-      },
-      totalBespokePrice: formatPrice(finalPrice)
-    }, null, 2);
   };
 
   return createPortal(
@@ -235,7 +217,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                       <div className="space-y-3 text-[11px] leading-relaxed">
                         <div className="flex justify-between">
                           <span className="text-foreground/45 uppercase tracking-wider font-semibold">Buyurtma ID</span>
-                          <span className="text-foreground font-mono font-bold">BESPOKE-{Math.floor(1000 + Math.random() * 9000)}</span>
+                          <span className="text-foreground font-mono font-bold">{submittedOrderId}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-foreground/45 uppercase tracking-wider font-semibold">O'lchamlar</span>

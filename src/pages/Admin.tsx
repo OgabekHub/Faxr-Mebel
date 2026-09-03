@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Edit3, DollarSign, ShoppingBag, Users, CheckCircle, Package, ArrowUpRight, BarChart2, X, PlusCircle, Save } from 'lucide-react';
+import { Trash2, Edit3, DollarSign, ShoppingBag, Users, CheckCircle, ArrowUpRight, BarChart2, X, PlusCircle, Save } from 'lucide-react';
 import { cn, formatPrice } from '../lib/utils';
-import { useTheme } from '../context/ThemeContext';
 import { CustomSelect } from '../components/CustomSelect';
 import { db } from '../lib/firebase';
 import { collection, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import type { Order, OrderStatus } from '../types/domain';
+
+/** Orders as the admin panel sees them: real Firestore orders plus the legacy demo rows (removed in Faza 1). */
+type AdminOrder = Partial<Order> & {
+  id: string;
+  client: string;
+  total: number;
+  date: string;
+  status: OrderStatus;
+  item?: string;
+  wood?: string;
+  fabric?: string;
+};
 
 // Stateful mock initial database for Admin actions
-const initialOrders = [
+const initialOrders: AdminOrder[] = [
   { id: 'ORD-2026-904', client: 'Alisher Navoiy', total: 12650000, date: '2026-05-15', status: 'artisan', item: 'Royal Velvet Sofa', wood: 'Walnut (Yong\'oq)', fabric: 'Italiya Baxmali' },
   { id: 'ORD-2026-891', client: 'Elena V.', total: 8500000, date: '2026-05-12', status: 'completed', item: 'Modern Oak Dining Table', wood: 'Oak (Eman)', fabric: 'N/A' },
   { id: 'ORD-2026-874', client: 'Davron B.', total: 15000000, date: '2026-05-10', status: 'wood', item: 'Minimalist Bed Frame', wood: 'Walnut (Yong\'oq)', fabric: 'Premium Textile' }
@@ -21,12 +32,12 @@ const initialProducts = [
   { id: '3', name: 'Minimalist Bed Frame', price: 15000000, rating: 5.0, category: 'Bedroom', image: '/images/bed.png', wood: 'Walnut (Yong\'oq)', fabric: 'Premium Textile' }
 ];
 
+type AdminProduct = (typeof initialProducts)[number];
+
 export const Admin = () => {
-  const { t } = useTranslation();
-  
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('overview');
   const [products, setProducts] = useState(initialProducts);
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
@@ -34,12 +45,12 @@ export const Admin = () => {
     const unsubscribe = onSnapshot(
       collection(db, 'orders'),
       (snapshot) => {
-        const fetchedOrders = snapshot.docs.map(doc => ({
+        const fetchedOrders: AdminOrder[] = snapshot.docs.map(doc => ({
+          ...(doc.data() as Omit<AdminOrder, 'id'>),
           id: doc.id,
-          ...doc.data()
         }));
         // Sort by date (newest first)
-        fetchedOrders.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        fetchedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setOrders(fetchedOrders);
         setIsDemoMode(false);
       },
@@ -55,7 +66,7 @@ export const Admin = () => {
 
   // Form states for creating/editing a product
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
     price: 0,
@@ -71,7 +82,7 @@ export const Admin = () => {
     }
   };
 
-  const handleOpenEditProduct = (product: any) => {
+  const handleOpenEditProduct = (product: AdminProduct) => {
     setEditingProduct(product);
     setProductForm({
       name: product.name,
@@ -119,7 +130,7 @@ export const Admin = () => {
     const currentOrder = orders.find(o => o.id === orderId);
     if (!currentOrder) return;
 
-    let nextStatus = 'wood';
+    let nextStatus: OrderStatus = 'wood';
     if (currentOrder.status === 'pending') nextStatus = 'wood';
     else if (currentOrder.status === 'wood') nextStatus = 'artisan';
     else if (currentOrder.status === 'artisan') nextStatus = 'quality';
@@ -431,8 +442,8 @@ export const Admin = () => {
             
             <div className="space-y-4">
               {orders.map(o => {
-                const itemNames = o.items?.map((it: any) => `${it.name} (x${it.quantity})`).join(', ') || o.item || 'Faxr Mebel Mahsuloti';
-                const firstBespoke = o.items?.find((it: any) => it.bespokeDetails);
+                const itemNames = o.items?.map((it) => `${it.name} (x${it.quantity})`).join(', ') || o.item || 'Faxr Mebel Mahsuloti';
+                const firstBespoke = o.items?.find((it) => it.bespokeDetails);
                 const wood = firstBespoke?.bespokeDetails?.wood || o.wood || 'N/A';
                 const fabric = firstBespoke?.bespokeDetails?.fabric || o.fabric || 'N/A';
 

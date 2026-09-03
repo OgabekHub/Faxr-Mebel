@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Star, ShoppingCart, Eye, Grid, List, Sparkles, X, Heart, ShieldCheck, Check, QrCode, Smartphone } from 'lucide-react';
+import { Search, Star, ShoppingCart, Eye, Grid, List, Sparkles, X, Heart, Check, QrCode, Smartphone } from 'lucide-react';
 import { cn, formatPrice } from '../lib/utils';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -28,28 +28,30 @@ const allProducts = [
   { id: '10', name: 'Contemporary Glossy Kitchen', price: 19800000, rating: 4.7, category: 'Dining', image: '/images/kitchen_glossy_white_black.png', wood: 'High Gloss Acrylic', fabric: 'Reflective Glass Backsplash', size: '300cm x 60cm x 220cm' },
 ];
 
+type ShopProduct = (typeof allProducts)[number];
+
 const categories = ['All', 'Sofa', 'Bedroom', 'Dining', 'Office', 'Luxury Decor'];
 
 export const Shop = () => {
   const { t } = useTranslation();
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist: toggleGlobalWishlist, isInWishlist } = useWishlist();
-  
+
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [priceRange, setPriceRange] = useState(20000000); // 20M UZS max
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
-  const [quickViewProduct, setQuickViewProduct] = useState<any | null>(null);
-  const [activeARProduct, setActiveARProduct] = useState<any | null>(null);
-  const [activeBespokeProduct, setActiveBespokeProduct] = useState<any | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<ShopProduct | null>(null);
+  const [activeARProduct, setActiveARProduct] = useState<ShopProduct | null>(null);
+  const [activeBespokeProduct, setActiveBespokeProduct] = useState<ShopProduct | null>(null);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
-  
+
   // Custom bespoke wood and fabric selection inside the modal
   const [bespokeWood, setBespokeWood] = useState('Walnut (Yong\'oq)');
   const [bespokeFabric, setBespokeFabric] = useState('Italian Velvet');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleToggleWishlist = (product: any) => {
+  const handleToggleWishlist = (product: ShopProduct) => {
     toggleGlobalWishlist({
       id: product.id,
       name: t('product.' + product.id + '.name'),
@@ -69,12 +71,18 @@ export const Shop = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleAddToCart = (product: any, customized = false) => {
-    const finalProduct = customized 
-      ? { ...product, name: `${t('product.' + product.id + '.name')} (Custom)`, bespokeDetails: { wood: bespokeWood, fabric: bespokeFabric } }
-      : { ...product, name: t('product.' + product.id + '.name') };
-    addToCart(finalProduct);
-    triggerToast(finalProduct.name + t('shop.toast.added'));
+  const handleAddToCart = (product: ShopProduct, customized = false) => {
+    const baseName = t('product.' + product.id + '.name');
+    const name = customized ? `${baseName} (Custom)` : baseName;
+    addToCart({
+      id: product.id,
+      name,
+      price: product.price,
+      image: product.image,
+      category: t('shop.category.' + product.category),
+      bespokeDetails: customized ? { wood: bespokeWood, fabric: bespokeFabric } : undefined,
+    });
+    triggerToast(name + t('shop.toast.added'));
     setQuickViewProduct(null);
   };
 
@@ -505,7 +513,6 @@ export const Shop = () => {
           isOpen={!!activeARProduct}
           onClose={() => setActiveARProduct(null)}
           productName={t('product.' + activeARProduct.id + '.name')}
-          productImage={activeARProduct.image}
           productId={String(activeARProduct.id)}
         />
       )}

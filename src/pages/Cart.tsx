@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, ChevronLeft, CheckCircle2, Gift, Award, HelpCircle, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { cn, formatPrice } from '../lib/utils';
+import { cn, formatPrice, getErrorMessage } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
-import { sendTelegramMessage } from '../services/telegram';
+import { postNotify } from '../services/notify';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import type { Order } from '../types/domain';
 
 const generateOrderId = () => {
   const date = new Date();
@@ -20,14 +20,13 @@ const generateOrderId = () => {
 };
 
 export const Cart = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { cart, removeFromCart, updateQuantity, totalAmount, totalItems, clearCart } = useCart();
   
   const [isCheckout, setIsCheckout] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState<'click_payme' | 'consultation'>('click_payme');
@@ -70,44 +69,9 @@ export const Cart = () => {
     setIsSubmitting(true);
 
     const orderId = generateOrderId();
-    
-    const orderDetails = cart.map(item => {
-      let customTag = '';
-      if (item.bespokeDetails) {
-        customTag = `\n   ↳ 🪵 <i>Yog'och: ${item.bespokeDetails.wood}</i> | 🧵 <i>Mato: ${item.bespokeDetails.fabric}</i>`;
-      }
-      return `- <b>${item.name}</b> (x${item.quantity}): ${formatPrice(item.price * item.quantity)}${customTag}`;
-    }).join('\n');
-
-    const addonsList = [
-      premiumBox ? '🎁 Hashamatli Yog\'och Qadoqlash (+500,000 UZS)' : '',
-      artisanCert ? '📜 Ustaxonaning Asillik Sertifikati (+150,000 UZS)' : ''
-    ].filter(Boolean).join('\n') || 'Yo\'q';
-
-    const paymentLabel = paymentMethod === 'click_payme' ? "💳 Click / Payme (Online - TO'LANDI)" : "📞 Konsultatsiyadan so'ng (Kutilmoqda)";
-
-    const message = `
-🌟 <b>YANGI PRESTIGE BUYURTMA</b> 🌟
-
-🆔 <b>Buyurtma ID:</b> <code>${orderId}</code>
-👤 <b>Mijoz:</b> ${formData.name}
-📱 <b>Telefon:</b> ${formData.phone}
-📍 <b>Manzil:</b> ${formData.address}
-✍️ <b>Qo'shimcha istaklar:</b> ${formData.wishes || 'Yo\'q'}
-💳 <b>To'lov turi:</b> ${paymentLabel}
-
-🛒 <b>Buyurtma tarkibi:</b>
-${orderDetails}
-
-➕ <b>Qo'shimcha xizmatlar:</b>
-${addonsList}
-
-💰 <b>Umumiy summa:</b> <b>${formatPrice(finalAmount)}</b>
-📅 <b>Sana:</b> ${new Date().toLocaleString('uz-UZ')}
-`;
 
     try {
-      const orderData = {
+      const orderData: Order = {
         id: orderId,
         userId: user.uid,
         client: formData.name,
@@ -137,8 +101,31 @@ ${addonsList}
       // Save order to Firestore
       await setDoc(doc(db, 'orders', orderId), orderData);
 
-      // Send telegram alert
-      await sendTelegramMessage(message);
+      // Notify the ops chat through the server-side function.
+      // The order is already saved, so a failed notification must not fail the checkout.
+      const notified = await postNotify({
+        kind: 'order',
+        payload: {
+          orderNumber: orderId,
+          client: formData.name,
+          phone: formData.phone,
+          address: formData.address,
+          wishes: formData.wishes,
+          items: orderData.items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            bespokeDetails: item.bespokeDetails,
+          })),
+          addons: orderData.addons,
+          total: finalAmount,
+          paymentMethod,
+          paymentStatus: orderData.paymentStatus,
+        },
+      });
+      if (!notified.ok) {
+        console.warn('Order saved, but the Telegram notification failed:', notified.error);
+      }
 
       setIsSubmitting(false);
       setShowPaymentModal(false);
@@ -149,11 +136,11 @@ ${addonsList}
         navigate('/profile');
       }, 4500);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Order creation failed:", error);
       setIsSubmitting(false);
       setShowPaymentModal(false);
-      alert(`Xatolik yuz berdi: ${error?.message || error || "Noma'lum xatolik"}`);
+      alert(`Xatolik yuz berdi: ${getErrorMessage(error) || "Noma'lum xatolik"}`);
     }
   };
 

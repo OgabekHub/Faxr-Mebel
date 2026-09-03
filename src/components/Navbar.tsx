@@ -257,10 +257,8 @@ export const Navbar = () => {
           "circular-transition-overlay animate-circular-wipe",
           targetTheme === 'dark' ? "bg-[#050505]" : "bg-[#F9F9F6]"
         )}
-        style={{ 
-          // @ts-ignore
+        style={{
           '--wipe-x': `${wipeCoords.x}px`,
-          // @ts-ignore
           '--wipe-y': `${wipeCoords.y}px`
         }}
       />

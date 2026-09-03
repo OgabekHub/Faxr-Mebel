@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { ArrowLeft, Camera, Box, Smartphone, RotateCcw, ZoomIn, AlertCircle } from 'lucide-react';
+import type { ModelViewerElement } from '../types/model-viewer';
 
 // Demo model mapping - productId bo'yicha 3D model tanlanadi
 const PRODUCT_MODELS: Record<string, { glb: string; name: string; color: string }> = {
@@ -22,8 +22,7 @@ const DEFAULT_MODEL = { glb: '/models/SheenChair.glb', name: 'Premium Mebel', co
 
 export const ARView: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
-  const { t } = useTranslation();
-  const modelViewerRef = useRef<HTMLElement>(null);
+  const modelViewerRef = useRef<ModelViewerElement>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isARSupported, setIsARSupported] = useState<boolean | null>(null);
   const [modelScriptLoaded, setModelScriptLoaded] = useState(false);
@@ -50,8 +49,8 @@ export const ARView: React.FC = () => {
     const mv = modelViewerRef.current;
     if (mv) {
       const handleLoad = () => setIsModelLoaded(true);
-      const handleError = (e: any) => {
-        console.error('model-viewer failed to load the model:', e);
+      const handleError = (event: Event) => {
+        console.error('model-viewer failed to load the model:', event);
         // Fallback: remove loading state so user isn't stuck forever, even if model failed
         setIsModelLoaded(true);
       };
@@ -88,15 +87,16 @@ export const ARView: React.FC = () => {
   }, []);
 
   const handleARClick = () => {
-    const mv = modelViewerRef.current as any;
-    if (mv && mv.activateAR) {
-      mv.activateAR();
+    const mv = modelViewerRef.current;
+    // The custom element may not be upgraded yet; guard the runtime API.
+    if (mv && typeof mv.activateAR === 'function') {
+      void mv.activateAR();
     }
   };
 
   const handleReset = () => {
-    const mv = modelViewerRef.current as any;
-    if (mv) {
+    const mv = modelViewerRef.current;
+    if (mv && typeof mv.resetTurntableRotation === 'function') {
       mv.cameraOrbit = 'auto auto auto';
       mv.resetTurntableRotation();
     }
@@ -165,7 +165,6 @@ export const ARView: React.FC = () => {
 
         {/* model-viewer tagi */}
         {modelScriptLoaded && (
-          // @ts-ignore
           <model-viewer
             ref={modelViewerRef}
             src={product.glb}

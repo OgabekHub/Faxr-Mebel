@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Smartphone, Check, ExternalLink, RotateCcw, Info } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import type { ModelViewerElement } from '../types/model-viewer';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://faxr-mebel.vercel.app';
 
@@ -11,7 +11,6 @@ interface ARModalProps {
   isOpen: boolean;
   onClose: () => void;
   productName: string;
-  productImage: string;
   productId?: string;
 }
 
@@ -19,10 +18,8 @@ export const ARModal: React.FC<ARModalProps> = ({
   isOpen,
   onClose,
   productName,
-  productImage,
   productId = '1',
 }) => {
-  const { t } = useTranslation();
   const [modelScriptLoaded, setModelScriptLoaded] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [qrCopied, setQrCopied] = useState(false);
@@ -54,11 +51,11 @@ export const ARModal: React.FC<ARModalProps> = ({
   useEffect(() => {
     if (!modelScriptLoaded) return;
     
-    const mv = document.getElementById(`mv-${productId}`);
+    const mv = document.getElementById(`mv-${productId}`) as ModelViewerElement | null;
     if (mv) {
       const handleLoad = () => setModelLoaded(true);
-      const handleError = (e: any) => {
-        console.error('ARModal: model-viewer failed to load', e);
+      const handleError = (event: Event) => {
+        console.error('ARModal: model-viewer failed to load', event);
         setModelLoaded(true); // Remove loader on error to prevent infinite spin
       };
       
@@ -122,7 +119,6 @@ export const ARModal: React.FC<ARModalProps> = ({
 
                 {/* model-viewer */}
                 {modelScriptLoaded && (
-                  // @ts-ignore
                   <model-viewer
                     id={`mv-${productId}`}
                     src="/models/SheenChair.glb"
@@ -207,7 +203,7 @@ export const ARModal: React.FC<ARModalProps> = ({
                         value={arUrl}
                         size={136}
                         level="M"
-                        includeMargin={false}
+                        marginSize={0}
                         fgColor="#050505"
                         bgColor="#FFFFFF"
                       />

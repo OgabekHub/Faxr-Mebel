@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import type { CartItem } from '../types/domain';
 
-export interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image: string;
-  category: string;
-}
+export type { CartItem };
 
 interface CartContextType {
   cart: CartItem[];

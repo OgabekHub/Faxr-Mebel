@@ -10,6 +10,11 @@ import {
 import { auth } from '../lib/firebase';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getErrorCode, getErrorMessage } from '../lib/utils';
+
+interface AuthLocationState {
+  from?: { pathname?: string };
+}
 
 export const Auth = () => {
   const navigate = useNavigate();
@@ -23,7 +28,7 @@ export const Auth = () => {
   const [focused, setFocused] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const from = (location.state as any)?.from?.pathname || '/profile';
+  const from = (location.state as AuthLocationState | null)?.from?.pathname || '/profile';
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -32,9 +37,9 @@ export const Auth = () => {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       navigate(from, { replace: true });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Login failed', err);
-      setError(err.message || t('auth.error.general'));
+      setError(getErrorMessage(err) || t('auth.error.general'));
     } finally {
       setIsLoading(false);
     }
@@ -55,16 +60,17 @@ export const Auth = () => {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       navigate(from, { replace: true });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Auth error', err);
+      const code = getErrorCode(err);
       let msg = t('auth.error.general');
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         msg = t('auth.error.invalidCredentials');
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (code === 'auth/email-already-in-use') {
         msg = t('auth.error.emailInUse');
-      } else if (err.code === 'auth/weak-password') {
+      } else if (code === 'auth/weak-password') {
         msg = t('auth.error.weakPassword');
-      } else if (err.code === 'auth/invalid-email') {
+      } else if (code === 'auth/invalid-email') {
         msg = t('auth.error.invalidEmail');
       }
       setError(msg);
