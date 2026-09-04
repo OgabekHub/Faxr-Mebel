@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleNotify } from './_lib/notify';
+// package.json has "type": "module", so Vercel runs this file as native ESM where relative
+// imports need an explicit extension. TypeScript maps `.js` to the `.ts` source.
+import { handleNotify } from './_lib/notify.js';
 
 // POST /api/notify — forwards validated site events to the Telegram ops chat.
 // The bot token lives only in the server environment (TELEGRAM_BOT_TOKEN).
