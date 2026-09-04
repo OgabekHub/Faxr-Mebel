@@ -16,7 +16,8 @@ export const Profile = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { wishlist } = useWishlist();
-  const { user, loading } = useAuth();
+  // ProtectedRoute only renders this page once auth has resolved with a signed-in user.
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist'>('orders');
 
   // Real Orders State
@@ -29,7 +30,7 @@ export const Profile = () => {
   // One orders listener per signed-in user; the cleanup runs on uid change and unmount (no leak).
   useEffect(() => {
     if (!uid) {
-      // Signed out: ProtectedRoute redirects to /auth, so nothing to show here.
+      // Defensive only: ProtectedRoute never renders this page without a user.
       setOrders([]);
       setSelectedOrderId(null);
       setOrdersLoading(false);
@@ -119,15 +120,6 @@ export const Profile = () => {
       steps
     };
   }, [orders, selectedOrderId, t]);
-
-  if (loading) {
-    return (
-      <div className="pt-44 pb-20 text-center h-screen flex flex-col items-center justify-center">
-        <Clock className="w-12 h-12 text-brand-gold animate-spin mb-4" />
-        <span className="text-xs uppercase tracking-hero text-foreground/40 font-bold">{t('profile.loading')}</span>
-      </div>
-    );
-  }
 
   return (
     <div className="pt-36 pb-20 px-6 max-w-7xl mx-auto min-h-screen">

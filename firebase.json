@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "database": "ai-studio-9e20a7a9-1a8b-431c-9c9c-364fe5ae68c0",
+    "rules": "firestore.rules"
+  }
+}

@@ -10,8 +10,14 @@ interface AuthContextType {
   loading: boolean;
   /** True when `admins/{uid}` exists for the signed-in user (see firestore.rules). */
   isAdmin: boolean;
-  /** True while the admin flag is being fetched for the current user. */
+  /** True while the admin flag for the *current* user is still unknown. */
   adminLoading: boolean;
+}
+
+/** The admin lookup result, tagged with the uid it belongs to. */
+interface AdminCheck {
+  uid: string;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,8 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminCheck, setAdminCheck] = useState<AdminCheck | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
@@ -38,31 +43,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const uid = user?.uid ?? null;
 
   useEffect(() => {
-    if (!uid) {
-      setIsAdmin(false);
-      setAdminLoading(false);
-      return;
-    }
+    if (!uid) return;
 
     let cancelled = false; // ignore a stale response after the user changed
-    setAdminLoading(true);
     getDoc(doc(db, 'admins', uid))
       .then((snapshot) => {
-        if (!cancelled) setIsAdmin(snapshot.exists());
+        if (!cancelled) setAdminCheck({ uid, isAdmin: snapshot.exists() });
       })
       .catch((error: unknown) => {
         // Missing rule / offline: treat as non-admin rather than crashing.
         console.warn('Could not read admin flag:', error);
-        if (!cancelled) setIsAdmin(false);
-      })
-      .finally(() => {
-        if (!cancelled) setAdminLoading(false);
+        if (!cancelled) setAdminCheck({ uid, isAdmin: false });
       });
 
     return () => {
       cancelled = true;
     };
   }, [uid]);
+
+  // Derived from the tagged result, so the very first authenticated render (before the
+  // lookup effect has run) and a user switch both report "still loading" instead of a
+  // false "not admin" that would bounce a real admin off /admin.
+  const adminKnown = uid !== null && adminCheck?.uid === uid;
+  const isAdmin = adminKnown && adminCheck!.isAdmin;
+  const adminLoading = uid !== null && !adminKnown;
 
   const value = useMemo<AuthContextType>(
     () => ({ user, loading, isAdmin, adminLoading }),

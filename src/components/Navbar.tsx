@@ -85,7 +85,7 @@ export const Navbar = () => {
     { name: t('nav.shop'), path: '/shop' },
     { name: t('nav.about'), path: '/about' },
     { name: t('nav.contact'), path: '/contact' },
-    ...(isAdmin ? [{ name: 'Admin', path: '/admin' }] : []),
+    ...(isAdmin ? [{ name: t('nav.admin'), path: '/admin' }] : []),
   ];
 
   const cartBadge = totalItems > 99 ? '99+' : String(totalItems);
