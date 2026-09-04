@@ -6,7 +6,9 @@ export interface BespokeDetails {
 }
 
 export interface CartItem {
+  /** Cart line id: the product id, or `productId::wood::fabric` for a customised item. */
   id: string;
+  productId: string;
   name: string;
   price: number;
   quantity: number;

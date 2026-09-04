@@ -151,7 +151,7 @@ export const Home = () => {
   const handleAddToCart = (product: FeaturedProduct) => {
     const name = t(`product.${product.id}.name`);
     addToCart({
-      id: product.id,
+      productId: product.id,
       name,
       price: product.price,
       image: product.image,

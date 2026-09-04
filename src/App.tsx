@@ -21,7 +21,20 @@ const Contact = React.lazy(() => import('./pages/Contact').then(m => ({ default:
 const About = React.lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Profile = React.lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const ARView = React.lazy(() => import('./pages/ARView').then(m => ({ default: m.ARView })));
+const NotFound = React.lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
+// Loading Fallback for Suspense
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-4 border-brand-gold/30 border-t-brand-gold rounded-full animate-spin"></div>
+  </div>
+);
+
+/**
+ * Page transition wrapper. Suspense lives *inside* the animated element so
+ * AnimatePresence always sees a single, stable child per route and the exit
+ * animation runs even when the next page's chunk is still downloading.
+ */
 const PageWrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <motion.div
@@ -31,7 +44,7 @@ const PageWrapper = ({ children }: { children: React.ReactNode }) => {
       transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
       className="page-transition-container"
     >
-      {children}
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
     </motion.div>
   );
 };
@@ -40,18 +53,13 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   React.useEffect(() => {
-    window.scrollTo(0, 0);
+    // `instant` overrides the global `scroll-behavior: smooth`, otherwise every
+    // route change visibly scrolls the old page up before the new one appears.
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname]);
 
   return null;
 };
-
-// Loading Fallback for Suspense
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="w-8 h-8 border-4 border-brand-gold/30 border-t-brand-gold rounded-full animate-spin"></div>
-  </div>
-);
 
 const AppLayout = () => {
   const location = useLocation();
@@ -64,22 +72,20 @@ const AppLayout = () => {
       {!isAuthPage && <Navbar />}
       <main className="flex-grow">
         <AnimatePresence mode="wait">
-          <Suspense fallback={<PageLoader />}>
-            <Routes location={location} {...{ key: location.pathname }}>
-              <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
-              <Route path="/shop" element={<PageWrapper><Shop /></PageWrapper>} />
-              <Route path="/auth" element={<PageWrapper><Auth /></PageWrapper>} />
-              
-              {/* Protected Routes */}
-              <Route path="/admin" element={<ProtectedRoute><PageWrapper><Admin /></PageWrapper></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
-              
-              <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
-              <Route path="/contact" element={<PageWrapper><Contact /></PageWrapper>} />
-              <Route path="/cart" element={<PageWrapper><Cart /></PageWrapper>} />
-              <Route path="/ar/:productId" element={<ARView />} />
-            </Routes>
-          </Suspense>
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
+            <Route path="/shop" element={<PageWrapper><Shop /></PageWrapper>} />
+            <Route path="/auth" element={<PageWrapper><Auth /></PageWrapper>} />
+
+            {/* Protected Routes */}
+            <Route path="/admin" element={<ProtectedRoute><PageWrapper><Admin /></PageWrapper></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
+
+            <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
+            <Route path="/contact" element={<PageWrapper><Contact /></PageWrapper>} />
+            <Route path="/cart" element={<PageWrapper><Cart /></PageWrapper>} />
+            <Route path="*" element={<PageWrapper><NotFound /></PageWrapper>} />
+          </Routes>
         </AnimatePresence>
       </main>
       {!isFooterHidden && <Footer />}
@@ -90,18 +96,25 @@ const AppLayout = () => {
 export default function App() {
   return (
     <HelmetProvider>
-      <ErrorBoundary>
-        <ThemeProvider>
-          <WishlistProvider>
-            <CartProvider>
-              <Router>
-                <ScrollToTop />
-                <AppLayout />
-              </Router>
-            </CartProvider>
-          </WishlistProvider>
-        </ThemeProvider>
-      </ErrorBoundary>
+      <ThemeProvider>
+        <WishlistProvider>
+          <CartProvider>
+            <Router>
+              <ScrollToTop />
+              <ErrorBoundary>
+                {/* Top-level Suspense covers Navbar/Footer translations (useTranslation suspends until the locale file loads). */}
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    {/* Full-screen AR experience: no navbar / footer. */}
+                    <Route path="/ar/:productId" element={<ARView />} />
+                    <Route path="*" element={<AppLayout />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </Router>
+          </CartProvider>
+        </WishlistProvider>
+      </ThemeProvider>
     </HelmetProvider>
   );
 }

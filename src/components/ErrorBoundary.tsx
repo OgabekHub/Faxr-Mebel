@@ -1,5 +1,6 @@
 import React from 'react';
 import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from 'react-error-boundary';
+import { useLocation } from 'react-router-dom';
 
 const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -10,17 +11,20 @@ const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
         <p className="text-foreground/60 text-xs mb-6">
           Ilovada kutilmagan xatolik yuz berdi. Iltimos, sahifani yangilang yoki asosiy sahifaga qayting.
         </p>
-        <pre className="text-left text-[10px] text-red-400 bg-red-500/10 p-4 rounded-xl overflow-auto mb-6">
-          {message}
-        </pre>
+        {import.meta.env.DEV && (
+          <pre className="text-left text-[10px] text-red-400 bg-red-500/10 p-4 rounded-xl overflow-auto mb-6">
+            {message}
+          </pre>
+        )}
         <div className="flex gap-4 justify-center">
-          <button 
+          <button
+            type="button"
             onClick={resetErrorBoundary}
             className="px-6 py-3 bg-brand-gold text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:scale-105"
           >
             Qayta urinish
           </button>
-          <a 
+          <a
             href="/"
             className="px-6 py-3 bg-foreground/10 text-foreground rounded-xl text-xs font-bold uppercase tracking-widest hover:scale-105"
           >
@@ -32,9 +36,15 @@ const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   );
 };
 
+/**
+ * Must render inside the Router: the boundary resets itself when the route
+ * changes, so a crash on one page no longer traps the user on the error
+ * screen after they navigate away.
+ */
 export const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
+  const { pathname } = useLocation();
   return (
-    <ReactErrorBoundary FallbackComponent={ErrorFallback}>
+    <ReactErrorBoundary FallbackComponent={ErrorFallback} resetKeys={[pathname]}>
       {children}
     </ReactErrorBoundary>
   );

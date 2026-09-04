@@ -270,5 +270,20 @@
   "profile.status.quality": "Sifat nazorati",
   "profile.status.qualityDesc": "Mebel choklari va yuklama chidamliligi tekshiriladi.",
   "profile.status.delivery": "Yetkazib berish va o'rnatish",
-  "profile.status.deliveryDesc": "Bepul yetkazib berilib, xonadoningizga yig'ib beriladi."
+  "profile.status.deliveryDesc": "Bepul yetkazib berilib, xonadoningizga yig'ib beriladi.",
+  "notFound.teaser": "Sahifa topilmadi",
+  "notFound.title": "Adashdingiz.",
+  "notFound.desc": "Siz qidirgan sahifa mavjud emas yoki ko'chirilgan. Bosh sahifaga qaytib, kolleksiyani ko'rishingiz mumkin.",
+  "notFound.cta": "Bosh sahifaga qaytish",
+  "cart.notifyFailed": "Buyurtma saqlandi, lekin menejerlarga avtomatik xabarnoma yetib bormadi. Biz siz bilan baribir bog'lanamiz.",
+  "cart.submitError": "Buyurtmani saqlashda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+  "bespoke.error": "Xatolik yuz berdi. Iltimos, ma'lumotlarni tekshiring va qayta urinib ko'ring.",
+  "validation.phone": "Telefon raqamini +998 XX XXX XX XX ko'rinishida kiriting.",
+  "contact.form.timeRequired": "Iltimos, tashrif vaqtini tanlang.",
+  "footer.subscribe": "Obuna bo'lish",
+  "footer.subscribeError": "Obuna bo'lishda xatolik. Qaytadan urinib ko'ring.",
+  "auth.error.popupBlocked": "Brauzer Google oynasini blokladi. Popup'ga ruxsat bering va qayta urinib ko'ring.",
+  "auth.error.network": "Internet aloqasi yo'q. Ulanishni tekshirib, qayta urinib ko'ring.",
+  "auth.resetNeedEmail": "Parolni tiklash uchun avval email manzilingizni kiriting.",
+  "auth.resetSent": "Parolni tiklash havolasi emailingizga yuborildi."
 }

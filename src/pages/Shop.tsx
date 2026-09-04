@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Star, ShoppingCart, Eye, Grid, List, Sparkles, X, Heart, Check, QrCode, Smartphone } from 'lucide-react';
@@ -32,6 +32,13 @@ type ShopProduct = (typeof allProducts)[number];
 
 const categories = ['All', 'Sofa', 'Bedroom', 'Dining', 'Office', 'Luxury Decor'];
 
+// Price filter bounds come from the data, so no product can fall outside the slider
+// (the old fixed 20M ceiling hid the three kitchens priced 21.5M–26M).
+const MILLION = 1_000_000;
+const PRICE_STEP = 500_000;
+const MIN_PRICE = Math.floor(Math.min(...allProducts.map(p => p.price)) / MILLION) * MILLION;
+const MAX_PRICE = Math.ceil(Math.max(...allProducts.map(p => p.price)) / MILLION) * MILLION;
+
 export const Shop = () => {
   const { t } = useTranslation();
   const { addToCart } = useCart();
@@ -39,7 +46,7 @@ export const Shop = () => {
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [priceRange, setPriceRange] = useState(20000000); // 20M UZS max
+  const [priceRange, setPriceRange] = useState(MAX_PRICE);
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
   const [quickViewProduct, setQuickViewProduct] = useState<ShopProduct | null>(null);
   const [activeARProduct, setActiveARProduct] = useState<ShopProduct | null>(null);
@@ -50,6 +57,9 @@ export const Shop = () => {
   const [bespokeWood, setBespokeWood] = useState('Walnut (Yong\'oq)');
   const [bespokeFabric, setBespokeFabric] = useState('Italian Velvet');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const handleToggleWishlist = (product: ShopProduct) => {
     toggleGlobalWishlist({
@@ -68,14 +78,15 @@ export const Shop = () => {
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleAddToCart = (product: ShopProduct, customized = false) => {
     const baseName = t('product.' + product.id + '.name');
     const name = customized ? `${baseName} (Custom)` : baseName;
     addToCart({
-      id: product.id,
+      productId: product.id,
       name,
       price: product.price,
       image: product.image,
@@ -86,12 +97,15 @@ export const Shop = () => {
     setQuickViewProduct(null);
   };
 
-  const filteredProducts = allProducts.filter(p => 
-    (selectedCategory === 'All' || p.category === selectedCategory) &&
-    t('product.' + p.id + '.name').toLowerCase().includes(searchQuery.toLowerCase()) &&
-    p.price <= priceRange &&
-    (!showOnlyFavorites || isInWishlist(p.id))
-  );
+  const filteredProducts = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    return allProducts.filter(p =>
+      (selectedCategory === 'All' || p.category === selectedCategory) &&
+      (needle === '' || t('product.' + p.id + '.name').toLowerCase().includes(needle)) &&
+      p.price <= priceRange &&
+      (!showOnlyFavorites || isInWishlist(p.id))
+    );
+  }, [selectedCategory, searchQuery, priceRange, showOnlyFavorites, isInWishlist, t]);
 
   return (
     <div className="pt-36 pb-20 px-6 max-w-7xl mx-auto min-h-screen">
@@ -206,18 +220,19 @@ export const Shop = () => {
               <h3 className="text-[10px] font-black uppercase tracking-hero text-brand-gold">{t('shop.filter.price')}</h3>
               <span className="text-xs font-bold text-foreground/70">{t('shop.filter.priceRange')} {formatPrice(priceRange)}</span>
             </div>
-            <input 
-              type="range" 
-              min={2000000}
-              max={20000000}
-              step={500000}
+            <input
+              type="range"
+              min={MIN_PRICE}
+              max={MAX_PRICE}
+              step={PRICE_STEP}
               value={priceRange}
               onChange={(e) => setPriceRange(Number(e.target.value))}
+              aria-label={t('shop.filter.price')}
               className="w-full"
             />
             <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-foreground/30 mt-3">
-              <span>{formatPrice(2000000)}</span>
-              <span>{formatPrice(20000000)}</span>
+              <span>{formatPrice(MIN_PRICE)}</span>
+              <span>{formatPrice(MAX_PRICE)}</span>
             </div>
           </div>
 
@@ -337,8 +352,9 @@ export const Shop = () => {
                           <Star className="w-3.5 h-3.5 fill-current" /> {product.rating} ({t('shop.product.viewRating')})
                         </div>
                       </div>
+                      {/* Product descriptions arrive with the Firestore catalogue (Faza 3); until then show the materials line. */}
                       <p className="text-xs text-foreground/50 leading-relaxed font-light italic">
-                        {t('product.' + product.id + '.desc')}
+                        {t('shop.product.materialLabel')} {product.wood} | {product.fabric}
                       </p>
                       <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 text-[10px] font-bold uppercase tracking-wider text-foreground/45">
                         <span>{t('shop.product.sizeLabel')} <strong className="text-foreground">{product.size}</strong></span>

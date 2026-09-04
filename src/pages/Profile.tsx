@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogOut, Heart, ShoppingBag, Send, Award, Clock, CheckCircle } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
@@ -28,8 +28,13 @@ export const Profile = () => {
     let unsubscribeOrders: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      // Drop the previous user's orders listener before attaching a new one (leak on account switch / logout).
+      unsubscribeOrders?.();
+      unsubscribeOrders = undefined;
+
       if (firebaseUser) {
         setUser(firebaseUser);
+        setOrdersLoading(true);
 
         // Listen to orders matching current user's UID
         const q = query(
@@ -68,7 +73,7 @@ export const Profile = () => {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeOrders) unsubscribeOrders();
+      unsubscribeOrders?.();
     };
   }, []);
 
@@ -81,7 +86,7 @@ export const Profile = () => {
     }
   };
 
-  const getSelectedOrderData = () => {
+  const currentOrder = useMemo(() => {
     const order = orders.find(o => o.id === selectedOrderId);
     if (!order) return null;
 
@@ -101,7 +106,7 @@ export const Profile = () => {
       },
       { 
         label: t('profile.status.wood', 'Yog\'och saralanmoqda'), 
-        desc: t('profile.status.woodDesc', `Ustaxonamizdan oliy navli ${wood} yog'ochi ajratib olindi.`), 
+        desc: t('profile.status.woodDesc', { wood, defaultValue: `Ustaxonamizdan oliy navli ${wood} yog'ochi ajratib olindi.` }),
         status: order.status === 'pending' ? 'pending' : order.status === 'wood' ? 'active' : 'completed' 
       },
       { 
@@ -129,9 +134,7 @@ export const Profile = () => {
       packaging,
       steps
     };
-  };
-
-  const currentOrder = getSelectedOrderData();
+  }, [orders, selectedOrderId, t]);
 
   if (loading) {
     return (

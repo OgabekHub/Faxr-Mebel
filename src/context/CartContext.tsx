@@ -1,61 +1,124 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import type { CartItem } from '../types/domain';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { BespokeDetails, CartItem } from '../types/domain';
+import { readJson, writeJson } from '../lib/storage';
 
 export type { CartItem };
 
+/** What the UI passes in; the line id and quantity are computed here. */
+export interface CartItemInput {
+  productId: string;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  bespokeDetails?: BespokeDetails;
+}
+
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: Omit<CartItem, 'quantity'>) => void;
-  removeFromCart: (id: string) => void;
-  updateQuantity: (id: string, qty: number) => void;
+  addToCart: (item: CartItemInput, quantity?: number) => void;
+  removeFromCart: (lineId: string) => void;
+  updateQuantity: (lineId: string, qty: number) => void;
   clearCart: () => void;
   totalItems: number;
   totalAmount: number;
 }
 
+const STORAGE_KEY = 'cart';
+const MAX_QUANTITY = 99;
+
+/**
+ * A customised product is a separate line from the stock one, otherwise
+ * "add custom walnut sofa" used to just bump the quantity of the plain sofa.
+ */
+export function cartLineId(productId: string, bespoke?: BespokeDetails): string {
+  return bespoke ? `${productId}::${bespoke.wood}::${bespoke.fabric}` : productId;
+}
+
+function clampQuantity(qty: number): number {
+  if (!Number.isFinite(qty)) return 1;
+  return Math.min(MAX_QUANTITY, Math.max(1, Math.floor(qty)));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseCartItem(raw: unknown): CartItem | null {
+  if (!isRecord(raw)) return null;
+  const { id, productId, name, price, quantity, image, category, bespokeDetails } = raw;
+  if (typeof id !== 'string' || typeof name !== 'string' || typeof price !== 'number') return null;
+  if (typeof image !== 'string' || typeof category !== 'string') return null;
+
+  let bespoke: BespokeDetails | undefined;
+  if (isRecord(bespokeDetails) && typeof bespokeDetails.wood === 'string' && typeof bespokeDetails.fabric === 'string') {
+    bespoke = { wood: bespokeDetails.wood, fabric: bespokeDetails.fabric };
+  }
+
+  return {
+    id,
+    // Entries saved before `productId` existed used the product id as the line id.
+    productId: typeof productId === 'string' ? productId : id,
+    name,
+    price,
+    quantity: clampQuantity(typeof quantity === 'number' ? quantity : 1),
+    image,
+    category,
+    bespokeDetails: bespoke,
+  };
+}
+
+function parseCart(raw: unknown): CartItem[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw.map(parseCartItem).filter((item): item is CartItem => item !== null);
+}
+
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('cart');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [cart, setCart] = useState<CartItem[]>(() => readJson(STORAGE_KEY, parseCart, []));
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    writeJson(STORAGE_KEY, cart);
   }, [cart]);
 
-  const addToCart = (product: Omit<CartItem, 'quantity'>) => {
+  const addToCart = useCallback((input: CartItemInput, quantity = 1) => {
+    const lineId = cartLineId(input.productId, input.bespokeDetails);
+    const qty = clampQuantity(quantity);
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => item.id === lineId);
       if (existing) {
-        return prev.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        return prev.map(item =>
+          item.id === lineId ? { ...item, quantity: clampQuantity(item.quantity + qty) } : item
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...input, id: lineId, quantity: qty }];
     });
-  };
+  }, []);
 
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-  };
+  const removeFromCart = useCallback((lineId: string) => {
+    setCart(prev => prev.filter(item => item.id !== lineId));
+  }, []);
 
-  const updateQuantity = (id: string, qty: number) => {
-    if (qty < 1) return;
-    setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: qty } : item));
-  };
+  const updateQuantity = useCallback((lineId: string, qty: number) => {
+    setCart(prev => {
+      if (qty < 1) return prev.filter(item => item.id !== lineId);
+      const next = clampQuantity(qty);
+      return prev.map(item => (item.id === lineId ? { ...item, quantity: next } : item));
+    });
+  }, []);
 
-  const clearCart = () => setCart([]);
+  const clearCart = useCallback(() => setCart([]), []);
 
   const totalItems = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
-  const totalAmount = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
+  const totalAmount = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
-  return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount }}>
-      {children}
-    </CartContext.Provider>
+  const value = useMemo<CartContextType>(
+    () => ({ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount }),
+    [cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount]
   );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 export const useCart = () => {

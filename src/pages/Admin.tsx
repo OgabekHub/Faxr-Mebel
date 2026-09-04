@@ -1,31 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trash2, Edit3, DollarSign, ShoppingBag, Users, CheckCircle, ArrowUpRight, BarChart2, X, PlusCircle, Save } from 'lucide-react';
-import { cn, formatPrice } from '../lib/utils';
+import { Trash2, Edit3, DollarSign, ShoppingBag, Users, CheckCircle, ArrowUpRight, BarChart2, X, PlusCircle, Save, AlertTriangle } from 'lucide-react';
+import { cn, formatPrice, getErrorMessage } from '../lib/utils';
 import { CustomSelect } from '../components/CustomSelect';
 import { db } from '../lib/firebase';
 import { collection, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import type { Order, OrderStatus } from '../types/domain';
 
-/** Orders as the admin panel sees them: real Firestore orders plus the legacy demo rows (removed in Faza 1). */
+/** Orders as stored in Firestore; older documents may lack some fields. */
 type AdminOrder = Partial<Order> & {
   id: string;
   client: string;
   total: number;
   date: string;
   status: OrderStatus;
-  item?: string;
-  wood?: string;
-  fabric?: string;
 };
 
-// Stateful mock initial database for Admin actions
-const initialOrders: AdminOrder[] = [
-  { id: 'ORD-2026-904', client: 'Alisher Navoiy', total: 12650000, date: '2026-05-15', status: 'artisan', item: 'Royal Velvet Sofa', wood: 'Walnut (Yong\'oq)', fabric: 'Italiya Baxmali' },
-  { id: 'ORD-2026-891', client: 'Elena V.', total: 8500000, date: '2026-05-12', status: 'completed', item: 'Modern Oak Dining Table', wood: 'Oak (Eman)', fabric: 'N/A' },
-  { id: 'ORD-2026-874', client: 'Davron B.', total: 15000000, date: '2026-05-10', status: 'wood', item: 'Minimalist Bed Frame', wood: 'Walnut (Yong\'oq)', fabric: 'Premium Textile' }
-];
+const ORDER_STATUS_FLOW: OrderStatus[] = ['pending', 'wood', 'artisan', 'quality', 'completed'];
 
+/** Next production stage, or null once the order is completed (no wrap-around back to pending). */
+function nextOrderStatus(status: OrderStatus): OrderStatus | null {
+  const index = ORDER_STATUS_FLOW.indexOf(status);
+  if (index === -1) return ORDER_STATUS_FLOW[0];
+  return ORDER_STATUS_FLOW[index + 1] ?? null;
+}
+
+// Local-only catalogue mock. Faza 3 replaces this with the Firestore `products` collection.
 const initialProducts = [
   { id: '1', name: 'Royal Velvet Sofa', price: 12000000, rating: 4.9, category: 'Sofa', image: '/images/sofa.png', wood: 'Walnut (Yong\'oq)', fabric: 'Italian Velvet' },
   { id: '2', name: 'Modern Oak Dining Table', price: 8500000, rating: 4.8, category: 'Dining', image: '/images/dining_table.png', wood: 'Oak (Eman)', fabric: 'N/A' },
@@ -38,10 +38,12 @@ export const Admin = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('overview');
   const [products, setProducts] = useState(initialProducts);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Real-time Firestore sync with permission fallback
+    // Real-time Firestore sync. A permission error is shown as an error, not silently replaced by demo data.
     const unsubscribe = onSnapshot(
       collection(db, 'orders'),
       (snapshot) => {
@@ -52,12 +54,13 @@ export const Admin = () => {
         // Sort by date (newest first)
         fetchedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setOrders(fetchedOrders);
-        setIsDemoMode(false);
+        setOrdersError(null);
       },
       (error) => {
-        console.warn("Firestore collection 'orders' access denied. Falling back to Demo Mode:", error.message);
-        setIsDemoMode(true);
-        setOrders(initialOrders);
+        console.error("Firestore 'orders' subscription failed:", error);
+        setOrdersError(error.code === 'permission-denied'
+          ? "Buyurtmalarni o'qishga ruxsat yo'q. Hisobingiz admin sifatida ro'yxatdan o'tmagan."
+          : `Buyurtmalarni yuklab bo'lmadi: ${error.message}`);
       }
     );
 
@@ -78,7 +81,7 @@ export const Admin = () => {
 
   const handleDeleteProduct = (id: string) => {
     if (confirm("Ushbu premium mahsulotni katalogdan butunlay o'chirmoqchimisiz?")) {
-      setProducts(products.filter(p => p.id !== id));
+      setProducts(prev => prev.filter(p => p.id !== id));
     }
   };
 
@@ -112,45 +115,33 @@ export const Admin = () => {
     e.preventDefault();
     if (editingProduct) {
       // Edit
-      setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productForm } : p));
+      setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productForm } : p));
     } else {
-      // Create new
+      // Create new (deleting a product used to make the next id collide with an existing one)
       const newProduct = {
-        id: String(products.length + 1),
+        id: crypto.randomUUID(),
         rating: 5.0,
         ...productForm
       };
-      setProducts([...products, newProduct]);
+      setProducts(prev => [...prev, newProduct]);
     }
     setIsProductModalOpen(false);
   };
 
-  // Toggle order status in Firestore / local state
-  const advanceOrderStatus = async (orderId: string) => {
-    const currentOrder = orders.find(o => o.id === orderId);
-    if (!currentOrder) return;
+  // Move an order to the next production stage in Firestore; the snapshot listener updates the list.
+  const advanceOrderStatus = async (order: AdminOrder) => {
+    const nextStatus = nextOrderStatus(order.status);
+    if (!nextStatus || updatingOrderId) return;
 
-    let nextStatus: OrderStatus = 'wood';
-    if (currentOrder.status === 'pending') nextStatus = 'wood';
-    else if (currentOrder.status === 'wood') nextStatus = 'artisan';
-    else if (currentOrder.status === 'artisan') nextStatus = 'quality';
-    else if (currentOrder.status === 'quality') nextStatus = 'completed';
-    else nextStatus = 'pending';
-
-    if (isDemoMode) {
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
-      return;
-    }
-
+    setUpdatingOrderId(order.id);
+    setStatusError(null);
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: nextStatus
-      });
+      await updateDoc(doc(db, 'orders', order.id), { status: nextStatus });
     } catch (error) {
-      console.error("Firestore status update failed, shifting to local demo mode:", error);
-      setIsDemoMode(true);
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+      console.error('Firestore status update failed:', error);
+      setStatusError(`Holatni o'zgartirib bo'lmadi (${order.id}): ${getErrorMessage(error) || 'ruxsat yo\'q'}`);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -201,19 +192,14 @@ export const Admin = () => {
         </div>
       </header>
 
-      {/* Demo Mode Banner */}
-      {isDemoMode && (
-        <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl flex items-center justify-between gap-4 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <div className="text-left">
-              <span className="text-xs font-bold text-foreground block">Demo Boshqaruv Rejimi Faol</span>
-              <p className="text-[10px] text-foreground/50 leading-relaxed font-light italic">
-                Firebase Firestore ma'lumotlar bazasiga yozish huquqi yo'q (rursat cheklangan). Kiritilgan o'zgarishlar faqat brauzer xotirasida saqlanadi.
-              </p>
-            </div>
+      {/* Firestore error banner */}
+      {(ordersError || statusError) && (
+        <div role="alert" className="mb-8 p-4 bg-red-500/10 border border-red-500/25 rounded-2xl flex items-start gap-3 animate-fade-in">
+          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="text-left">
+            <span className="text-xs font-bold text-foreground block">Firestore xatosi</span>
+            <p className="text-[10px] text-foreground/60 leading-relaxed">{ordersError ?? statusError}</p>
           </div>
-          <span className="text-[9px] font-black tracking-widest uppercase bg-amber-500/20 text-amber-500 px-3 py-1 rounded-lg shrink-0">Demo Mode</span>
         </div>
       )}
 
@@ -441,11 +427,15 @@ export const Admin = () => {
             <h2 className="text-xl font-editorial-title font-bold text-foreground pb-4 border-b border-foreground/5">Hozirgi Buyurtmalar va Nazorat ({orders.length})</h2>
             
             <div className="space-y-4">
+              {orders.length === 0 && !ordersError && (
+                <p className="text-xs text-foreground/45 italic py-10 text-center">Hozircha buyurtmalar yo'q.</p>
+              )}
               {orders.map(o => {
-                const itemNames = o.items?.map((it) => `${it.name} (x${it.quantity})`).join(', ') || o.item || 'Faxr Mebel Mahsuloti';
+                const itemNames = o.items?.map((it) => `${it.name} (x${it.quantity})`).join(', ') || 'Faxr Mebel Mahsuloti';
                 const firstBespoke = o.items?.find((it) => it.bespokeDetails);
-                const wood = firstBespoke?.bespokeDetails?.wood || o.wood || 'N/A';
-                const fabric = firstBespoke?.bespokeDetails?.fabric || o.fabric || 'N/A';
+                const wood = firstBespoke?.bespokeDetails?.wood || 'N/A';
+                const fabric = firstBespoke?.bespokeDetails?.fabric || 'N/A';
+                const isCompleted = o.status === 'completed';
 
                 return (
                   <div key={o.id} className="bento-card p-6 flex flex-col md:flex-row items-center justify-between gap-6 border-l-4 border-l-brand-gold">
@@ -479,11 +469,13 @@ export const Admin = () => {
                         <span className="price-tag text-xl font-bold">{formatPrice(o.total)}</span>
                       </div>
 
-                      <button 
-                        onClick={() => advanceOrderStatus(o.id)}
-                        className="px-5 py-3.5 bg-foreground/5 hover:bg-brand-gold hover:text-black rounded-xl text-[9px] font-black uppercase tracking-hero transition-all flex items-center gap-2"
+                      <button
+                        type="button"
+                        onClick={() => advanceOrderStatus(o)}
+                        disabled={isCompleted || updatingOrderId === o.id}
+                        className="px-5 py-3.5 bg-foreground/5 hover:bg-brand-gold hover:text-black rounded-xl text-[9px] font-black uppercase tracking-hero transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-foreground/5 disabled:hover:text-foreground"
                       >
-                        🔄 Bosqichni O'zgartirish
+                        {isCompleted ? '✅ Yakunlangan' : updatingOrderId === o.id ? 'Saqlanmoqda...' : '🔄 Keyingi Bosqich'}
                       </button>
                     </div>
                   </div>

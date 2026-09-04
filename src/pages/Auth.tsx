@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, Send, ShieldCheck, Eye, EyeOff, ArrowRight, Sparkles, ArrowLeft } from 'lucide-react';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+import {
+  signInWithPopup,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getErrorCode, getErrorMessage } from '../lib/utils';
+import { getErrorCode } from '../lib/utils';
 
 interface AuthLocationState {
   from?: { pathname?: string };
@@ -27,19 +28,48 @@ export const Auth = () => {
   const [password, setPassword] = useState('');
   const [focused, setFocused] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const from = (location.state as AuthLocationState | null)?.from?.pathname || '/profile';
 
+  /** Maps Firebase auth error codes to translated, user-facing messages. Returns null for user-cancelled popups. */
+  const describeAuthError = (err: unknown): string | null => {
+    const code = getErrorCode(err);
+    switch (code) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return null;
+      case 'auth/popup-blocked':
+        return t('auth.error.popupBlocked');
+      case 'auth/network-request-failed':
+        return t('auth.error.network');
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return t('auth.error.invalidCredentials');
+      case 'auth/email-already-in-use':
+        return t('auth.error.emailInUse');
+      case 'auth/weak-password':
+        return t('auth.error.weakPassword');
+      case 'auth/invalid-email':
+        return t('auth.error.invalidEmail');
+      default:
+        return t('auth.error.general');
+    }
+  };
+
   const handleGoogleLogin = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     setError(null);
+    setInfo(null);
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       navigate(from, { replace: true });
     } catch (err) {
       console.error('Login failed', err);
-      setError(getErrorMessage(err) || t('auth.error.general'));
+      setError(describeAuthError(err));
     } finally {
       setIsLoading(false);
     }
@@ -47,12 +77,14 @@ export const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     if (!email || !password) {
       setError(t('auth.error.missingFields'));
       return;
     }
     setIsLoading(true);
     setError(null);
+    setInfo(null);
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
@@ -62,18 +94,31 @@ export const Auth = () => {
       navigate(from, { replace: true });
     } catch (err) {
       console.error('Auth error', err);
+      setError(describeAuthError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (isLoading) return;
+    setError(null);
+    setInfo(null);
+    if (!email.trim()) {
+      setError(t('auth.resetNeedEmail'));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setInfo(t('auth.resetSent'));
+    } catch (err) {
+      console.error('Password reset failed', err);
+      // Don't reveal whether the address exists; only surface format / network problems.
       const code = getErrorCode(err);
-      let msg = t('auth.error.general');
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        msg = t('auth.error.invalidCredentials');
-      } else if (code === 'auth/email-already-in-use') {
-        msg = t('auth.error.emailInUse');
-      } else if (code === 'auth/weak-password') {
-        msg = t('auth.error.weakPassword');
-      } else if (code === 'auth/invalid-email') {
-        msg = t('auth.error.invalidEmail');
-      }
-      setError(msg);
+      if (code === 'auth/invalid-email') setError(t('auth.error.invalidEmail'));
+      else if (code === 'auth/network-request-failed') setError(t('auth.error.network'));
+      else setInfo(t('auth.resetSent'));
     } finally {
       setIsLoading(false);
     }
@@ -255,9 +300,11 @@ export const Auth = () => {
               ].map(({ key, label }) => (
                 <button
                   key={String(key)}
+                  type="button"
                   onClick={() => {
                     setIsLogin(key);
                     setError(null);
+                    setInfo(null);
                   }}
                   className={`flex-1 py-2.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest rounded-xl ${
                     isLogin === key
@@ -317,6 +364,22 @@ export const Auth = () => {
                 )}
               </AnimatePresence>
 
+              {/* Info Banner (e.g. password reset sent) */}
+              <AnimatePresence>
+                {info && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    role="status"
+                    className="p-4 bg-brand-gold/10 border border-brand-gold/20 text-brand-gold rounded-2xl text-[11px] font-bold flex items-center gap-2"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0" />
+                    {info}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Email input */}
               <div className="space-y-1.5">
                 <label className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-foreground/40 ml-1">
@@ -368,7 +431,9 @@ export const Auth = () => {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    className="text-[9px] sm:text-[10px] text-brand-gold/60 hover:text-brand-gold uppercase tracking-widest font-bold transition-colors"
+                    onClick={handleForgotPassword}
+                    disabled={isLoading}
+                    className="text-[9px] sm:text-[10px] text-brand-gold/60 hover:text-brand-gold uppercase tracking-widest font-bold transition-colors disabled:opacity-50"
                   >
                     {t('auth.forgot')}
                   </button>
@@ -380,7 +445,9 @@ export const Auth = () => {
                 whileHover={{ scale: 1.015 }}
                 whileTap={{ scale: 0.98 }}
                 type="submit"
-                className="relative w-full bg-brand-gold text-black py-4 rounded-2xl font-bold text-[10px] sm:text-xs uppercase tracking-hero overflow-hidden group mt-1"
+                disabled={isLoading}
+                aria-busy={isLoading}
+                className="relative w-full bg-brand-gold text-black py-4 rounded-2xl font-bold text-[10px] sm:text-xs uppercase tracking-hero overflow-hidden group mt-1 disabled:cursor-not-allowed"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {isLoading ? (
@@ -432,9 +499,11 @@ export const Auth = () => {
             <p className="mt-6 text-center text-[10px] sm:text-[11px] text-foreground/40">
               {isLogin ? t('auth.newToFaxr') : t('auth.alreadyMember')}{' '}
               <button
+                type="button"
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError(null);
+                  setInfo(null);
                 }}
                 className="text-brand-gold font-bold hover:underline underline-offset-4 decoration-brand-gold/30"
               >

@@ -5,6 +5,9 @@ import { X, ArrowRight, ArrowLeft, Ruler, Sparkles, Send, ShieldCheck, CheckCirc
 import { formatPrice } from '../lib/utils';
 import { createPortal } from 'react-dom';
 import { postNotify } from '../services/notify';
+import { isValidUzPhone } from '../lib/validation';
+
+const BESPOKE_FORM_ID = 'bespoke-order-form';
 
 interface BespokeModalProps {
   isOpen: boolean;
@@ -33,6 +36,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Reset modal state on open
   useEffect(() => {
@@ -48,6 +52,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
       setIsSubmitting(false);
       setSubmitted(false);
       setSubmittedOrderId('');
+      setFormError(null);
     }
   }, [isOpen]);
 
@@ -63,7 +68,13 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName || !userPhone) return;
+    if (isSubmitting) return;
+    if (!userName.trim() || !userPhone.trim()) return; // HTML `required` handles the message
+    if (!isValidUzPhone(userPhone)) {
+      setFormError(t('validation.phone'));
+      return;
+    }
+    setFormError(null);
 
     // One id per submission: shown on the receipt and sent to the ops chat.
     const orderId = `BESPOKE-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -91,7 +102,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
     if (result.ok) {
       setSubmitted(true);
     } else {
-      alert("Xatolik yuz berdi. Iltimos, ma'lumotlarni tekshiring va qayta urinib ko'ring.");
+      setFormError(t('bespoke.error'));
     }
   };
 
@@ -169,10 +180,12 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                     </div>
                     {/* Close Button */}
                     <button
+                      type="button"
                       onClick={onClose}
+                      aria-label="Yopish"
                       className="shrink-0 w-9 h-9 rounded-full bg-foreground/8 hover:bg-foreground/15 flex items-center justify-center border border-foreground/10 text-foreground"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                 )}
@@ -180,12 +193,14 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                 {/* Submitting Screen */}
                 {isSubmitting && (
                   <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-                    <motion.div 
-                      animate={{ rotate: 360 }}
-                      transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                      className="w-12 h-12 border-2 border-brand-gold/30 border-t-brand-gold rounded-full mb-6"
-                    />
-                    <MessageSquareCode className="w-8 h-8 text-brand-gold animate-bounce absolute" />
+                    <div className="relative w-16 h-16 flex items-center justify-center mb-6">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                        className="absolute inset-0 border-2 border-brand-gold/30 border-t-brand-gold rounded-full"
+                      />
+                      <MessageSquareCode className="w-6 h-6 text-brand-gold animate-bounce" aria-hidden="true" />
+                    </div>
                     <h3 className="text-xl font-editorial-title font-bold">Xavfsiz hisob-faktura shakllanmoqda...</h3>
                     <p className="text-[10px] text-foreground/45 uppercase tracking-hero mt-2">Menejerlar bilan bog'lanish va Telegram xabarnomasi yuborilmoqda</p>
                   </div>
@@ -200,7 +215,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                       </div>
                       <h3 className="text-2xl font-editorial-title font-bold text-foreground">VIP Buyurtma Qabul Qilindi!</h3>
                       <p className="text-xs text-foreground/50 max-w-sm mx-auto leading-relaxed">
-                        Tashakkur! Sizning maxsus buyurtmangiz va mebelingiz o'lchamlari menejerlarimiz hamda ustaxona guruhiga **Telegram bot** orqali muvaffaqiyatli yuborildi. Biz 2 soat ichida siz bilan bog'lanamiz.
+                        Tashakkur! Sizning maxsus buyurtmangiz va mebelingiz o'lchamlari menejerlarimiz hamda ustaxona guruhiga <strong className="text-foreground">Telegram bot</strong> orqali muvaffaqiyatli yuborildi. Biz 2 soat ichida siz bilan bog'lanamiz.
                       </p>
                     </div>
 
@@ -242,11 +257,12 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                       </div>
                     </div>
 
-                    <button 
+                    <button
+                      type="button"
                       onClick={onClose}
                       className="w-full py-4 bg-brand-gold text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-gold-muted mt-6 shadow-xl shadow-brand-gold/15"
                     >
-                      Bosh sahifaga qaytish
+                      Yopish
                     </button>
                   </div>
                 )}
@@ -366,7 +382,7 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
 
                     {/* Step 3: Contact & Delivery */}
                     {step === 3 && (
-                      <form onSubmit={handleSubmit} className="space-y-6 py-4">
+                      <form id={BESPOKE_FORM_ID} onSubmit={handleSubmit} className="space-y-6 py-4">
                         <div>
                           <h4 className="text-lg font-bold flex items-center gap-2">
                             <ShieldCheck className="w-5 h-5 text-brand-gold" />
@@ -400,11 +416,13 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                         {/* Name and Phone Inputs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <label className="text-[9px] uppercase font-black tracking-widest text-foreground/55">{t('contact.form.label.name')}</label>
-                            <input 
-                              type="text" 
+                            <label htmlFor="bespoke-name" className="text-[9px] uppercase font-black tracking-widest text-foreground/55">{t('contact.form.label.name')}</label>
+                            <input
+                              id="bespoke-name"
+                              type="text"
                               required
-                              placeholder={t('contact.form.placeholder.name')} 
+                              maxLength={100}
+                              placeholder={t('contact.form.placeholder.name')}
                               className="w-full bg-foreground/5 border border-foreground/10 focus:border-brand-gold rounded-xl px-4 py-3 text-xs focus:outline-none transition-colors text-foreground"
                               value={userName}
                               onChange={(e) => setUserName(e.target.value)}
@@ -412,48 +430,61 @@ export const BespokeModal: React.FC<BespokeModalProps> = ({ isOpen, onClose, pro
                           </div>
 
                           <div className="space-y-2">
-                            <label className="text-[9px] uppercase font-black tracking-widest text-foreground/55">{t('contact.form.label.phone')}</label>
-                            <input 
-                              type="tel" 
+                            <label htmlFor="bespoke-phone" className="text-[9px] uppercase font-black tracking-widest text-foreground/55">{t('contact.form.label.phone')}</label>
+                            <input
+                              id="bespoke-phone"
+                              type="tel"
                               required
-                              placeholder={t('contact.form.placeholder.phone')} 
+                              maxLength={30}
+                              placeholder={t('contact.form.placeholder.phone')}
+                              aria-invalid={formError ? true : undefined}
                               className="w-full bg-foreground/5 border border-foreground/10 focus:border-brand-gold rounded-xl px-4 py-3 text-xs focus:outline-none transition-colors text-foreground"
                               value={userPhone}
-                              onChange={(e) => setUserPhone(e.target.value)}
+                              onChange={(e) => { setUserPhone(e.target.value); setFormError(null); }}
                             />
                           </div>
                         </div>
+
+                        {formError && (
+                          <p role="alert" className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[11px] font-bold">
+                            {formError}
+                          </p>
+                        )}
                       </form>
                     )}
 
                     {/* Navigation Buttons */}
                     <div className="flex gap-4 border-t border-foreground/10 pt-6 mt-6">
                       {step > 1 && (
-                        <button 
+                        <button
+                          type="button"
                           onClick={handlePrev}
                           className="px-6 py-4 bg-foreground/5 border border-foreground/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-foreground/10 flex items-center gap-2 text-foreground"
                         >
-                          <ArrowLeft className="w-4 h-4" />
+                          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                           Orqaga
                         </button>
                       )}
-                      
+
                       {step < 3 ? (
-                        <button 
+                        <button
+                          type="button"
                           onClick={handleNext}
                           className="flex-1 py-4 bg-brand-gold text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-gold-muted flex items-center justify-center gap-2 shadow-xl shadow-brand-gold/15"
                         >
                           Davom etish
-                          <ArrowRight className="w-4 h-4" />
+                          <ArrowRight className="w-4 h-4" aria-hidden="true" />
                         </button>
                       ) : (
-                        <button 
-                          onClick={handleSubmit}
-                          disabled={!userName || !userPhone}
+                        /* Submits the step-3 form (lives outside it), so `required` validation actually runs. */
+                        <button
+                          type="submit"
+                          form={BESPOKE_FORM_ID}
+                          disabled={!userName.trim() || !userPhone.trim()}
                           className="flex-1 py-4 bg-brand-gold text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-gold-muted flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-gold/15"
                         >
                           Tugatish va Buyurtmani Yuborish
-                          <Send className="w-4 h-4" />
+                          <Send className="w-4 h-4" aria-hidden="true" />
                         </button>
                       )}
                     </div>

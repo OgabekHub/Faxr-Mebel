@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Smartphone, Check, ExternalLink, RotateCcw, Info } from 'lucide-react';
+import { X, Smartphone, Check, ExternalLink, RotateCcw, Info, AlertCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import type { ModelViewerElement } from '../types/model-viewer';
-
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://faxr-mebel.vercel.app';
+import { useModelViewer } from '../hooks/useModelViewer';
+import { site } from '../config/site';
 
 interface ARModalProps {
   isOpen: boolean;
@@ -14,70 +14,75 @@ interface ARModalProps {
   productId?: string;
 }
 
+type ModelState = 'loading' | 'ready' | 'error';
+
 export const ARModal: React.FC<ARModalProps> = ({
   isOpen,
   onClose,
   productName,
   productId = '1',
 }) => {
-  const [modelScriptLoaded, setModelScriptLoaded] = useState(false);
-  const [modelLoaded, setModelLoaded] = useState(false);
+  // The script (and the 4 MB model) are only fetched once the modal is opened.
+  const { status: scriptStatus, retry: retryScript } = useModelViewer(isOpen);
+  const [modelState, setModelState] = useState<ModelState>('loading');
+  const [modelAttempt, setModelAttempt] = useState(0);
   const [qrCopied, setQrCopied] = useState(false);
+  const viewerRef = useRef<ModelViewerElement>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const arUrl = `${APP_URL}/ar/${productId}`;
+  const arUrl = `${site.appUrl}/ar/${productId}`;
 
   // Reset model state when modal reopens
   useEffect(() => {
     if (isOpen) {
-      setModelLoaded(false);
+      setModelState('loading');
+      setQrCopied(false);
     }
   }, [isOpen]);
 
-  // Dynamically load model-viewer script once
-  useEffect(() => {
-    if (document.querySelector('script[data-model-viewer]')) {
-      setModelScriptLoaded(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js';
-    script.setAttribute('data-model-viewer', 'true');
-    script.onload = () => setModelScriptLoaded(true);
-    document.head.appendChild(script);
-  }, []);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
 
-  // Robust native event listener for model-viewer load
+  // Native listeners on the custom element: React's onLoad is not fired by <model-viewer>.
   useEffect(() => {
-    if (!modelScriptLoaded) return;
-    
-    const mv = document.getElementById(`mv-${productId}`) as ModelViewerElement | null;
-    if (mv) {
-      const handleLoad = () => setModelLoaded(true);
-      const handleError = (event: Event) => {
-        console.error('ARModal: model-viewer failed to load', event);
-        setModelLoaded(true); // Remove loader on error to prevent infinite spin
-      };
-      
-      mv.addEventListener('load', handleLoad);
-      mv.addEventListener('error', handleError);
-      
-      return () => {
-        mv.removeEventListener('load', handleLoad);
-        mv.removeEventListener('error', handleError);
-      };
-    }
-  }, [modelScriptLoaded, isOpen, productId]);
+    if (scriptStatus !== 'ready' || !isOpen) return;
+    const mv = viewerRef.current;
+    if (!mv) return;
+
+    const handleLoad = () => setModelState('ready');
+    const handleError = (event: Event) => {
+      console.error('ARModal: model-viewer failed to load the model', event);
+      setModelState('error');
+    };
+
+    mv.addEventListener('load', handleLoad);
+    mv.addEventListener('error', handleError);
+    return () => {
+      mv.removeEventListener('load', handleLoad);
+      mv.removeEventListener('error', handleError);
+    };
+  }, [scriptStatus, isOpen, productId, modelAttempt]);
+
+  const handleRetry = () => {
+    setModelState('loading');
+    if (scriptStatus === 'error') retryScript();
+    else setModelAttempt(n => n + 1); // remount <model-viewer> to refetch the GLB
+  };
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(arUrl);
-      setQrCopied(true);
-      setTimeout(() => setQrCopied(false), 2500);
     } catch {
-      // fallback
+      // Clipboard API unavailable (insecure context / old browser): show the URL so it can be copied by hand.
+      window.prompt('Havola:', arUrl);
+      return;
     }
+    setQrCopied(true);
+    clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setQrCopied(false), 2500);
   };
+
+  const showSpinner = scriptStatus !== 'error' && modelState === 'loading';
+  const showError = scriptStatus === 'error' || modelState === 'error';
 
   return createPortal(
     <AnimatePresence>
@@ -104,7 +109,7 @@ export const ARModal: React.FC<ARModalProps> = ({
               <div className="md:col-span-7 bg-[#0A0A0A] relative flex flex-col overflow-hidden min-h-[360px] md:min-h-[500px]">
 
                 {/* Loading overlay */}
-                {!modelLoaded && (
+                {showSpinner && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#0A0A0A]/60 pointer-events-none backdrop-blur-sm">
                     <motion.div
                       animate={{ rotate: 360 }}
@@ -117,9 +122,28 @@ export const ARModal: React.FC<ARModalProps> = ({
                   </div>
                 )}
 
+                {/* Error overlay */}
+                {showError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#0A0A0A]/80 backdrop-blur-sm text-center px-8">
+                    <AlertCircle className="w-8 h-8 text-amber-400 mb-3" aria-hidden="true" />
+                    <p className="text-[10px] uppercase tracking-widest text-white/70 font-black mb-4">
+                      3D modelni yuklab bo'lmadi
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="px-5 py-2.5 bg-brand-gold text-black rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-brand-gold-muted"
+                    >
+                      Qayta urinish
+                    </button>
+                  </div>
+                )}
+
                 {/* model-viewer */}
-                {modelScriptLoaded && (
+                {scriptStatus === 'ready' && (
                   <model-viewer
+                    key={modelAttempt}
+                    ref={viewerRef}
                     id={`mv-${productId}`}
                     src="/models/SheenChair.glb"
                     alt={productName}
@@ -130,7 +154,7 @@ export const ARModal: React.FC<ARModalProps> = ({
                     shadow-intensity="1"
                     shadow-softness="0.7"
                     exposure="1.05"
-                    loading="eager"
+                    loading="lazy"
                     style={{
                       width: '100%',
                       height: '100%',
@@ -138,7 +162,6 @@ export const ARModal: React.FC<ARModalProps> = ({
                       background: 'transparent',
                       '--poster-color': 'transparent',
                     }}
-                    onLoad={() => setModelLoaded(true)}
                     interaction-prompt="none"
                   />
                 )}
@@ -152,7 +175,7 @@ export const ARModal: React.FC<ARModalProps> = ({
                 </div>
 
                 {/* Bottom: 3D control hint */}
-                {modelLoaded && (
+                {modelState === 'ready' && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -161,7 +184,7 @@ export const ARModal: React.FC<ARModalProps> = ({
                     <div className="flex items-center justify-center gap-3 text-white/25">
                       <span className="text-[7px] uppercase tracking-widest font-bold">↕ Kattalashtirish</span>
                       <span className="w-px h-2.5 bg-white/10" />
-                      <RotateCcw className="w-2.5 h-2.5" />
+                      <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />
                       <span className="text-[7px] uppercase tracking-widest font-bold">Aylantirish</span>
                     </div>
                   </motion.div>
@@ -182,10 +205,12 @@ export const ARModal: React.FC<ARModalProps> = ({
                     </div>
                     {/* Close Button */}
                     <button
+                      type="button"
                       onClick={onClose}
+                      aria-label="Yopish"
                       className="shrink-0 w-9 h-9 rounded-full bg-foreground/8 hover:bg-foreground/15 flex items-center justify-center border border-foreground/10 text-foreground mt-1"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                   <p className="text-[10px] text-foreground/45 leading-relaxed font-light mt-2">
@@ -218,7 +243,7 @@ export const ARModal: React.FC<ARModalProps> = ({
                   {/* Scan label */}
                   <div>
                     <div className="flex items-center justify-center gap-1.5 text-brand-gold">
-                      <Smartphone className="w-3.5 h-3.5" />
+                      <Smartphone className="w-3.5 h-3.5" aria-hidden="true" />
                       <span className="text-[9px] uppercase font-black tracking-widest">
                         Kamerani Yaqinlashtiring
                       </span>
@@ -230,7 +255,7 @@ export const ARModal: React.FC<ARModalProps> = ({
 
                   {/* Info note */}
                   <div className="flex items-start gap-2 bg-brand-gold/5 border border-brand-gold/15 rounded-xl p-2.5 text-left">
-                    <Info className="w-3 h-3 text-brand-gold shrink-0 mt-0.5" />
+                    <Info className="w-3 h-3 text-brand-gold shrink-0 mt-0.5" aria-hidden="true" />
                     <p className="text-[8px] text-foreground/50 leading-relaxed">
                       QR kodni skaner qilgach, "O'z xonangizda ko'ring" tugmasini bosing
                     </p>
@@ -241,17 +266,18 @@ export const ARModal: React.FC<ARModalProps> = ({
                 <div className="space-y-2.5">
                   {/* Copy link */}
                   <button
+                    type="button"
                     onClick={handleCopyLink}
                     className="w-full py-3 flex items-center justify-center gap-2 bg-foreground/5 border border-foreground/10 hover:border-brand-gold/40 rounded-2xl text-[9px] font-black uppercase tracking-widest text-foreground/60 hover:text-brand-gold"
                   >
                     {qrCopied ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
                         <span className="text-emerald-400">Havola nusxalandi!</span>
                       </>
                     ) : (
                       <>
-                        <ExternalLink className="w-3.5 h-3.5" />
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                         Havolani nusxalash
                       </>
                     )}
@@ -259,6 +285,7 @@ export const ARModal: React.FC<ARModalProps> = ({
 
                   {/* Close / OK */}
                   <button
+                    type="button"
                     onClick={onClose}
                     className="w-full py-3.5 bg-brand-gold text-black rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-brand-gold-muted shadow-xl shadow-brand-gold/15"
                   >

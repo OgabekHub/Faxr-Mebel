@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, ChevronLeft, CheckCircle2, Gift, Award, HelpCircle, ShieldCheck } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, CreditCard, ChevronLeft, CheckCircle2, Gift, Award, HelpCircle, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { cn, formatPrice, getErrorMessage } from '../lib/utils';
+import { cn, formatPrice } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { postNotify } from '../services/notify';
 import { auth, db } from '../lib/firebase';
@@ -19,14 +20,25 @@ const generateOrderId = () => {
   return `ORD-${year}${month}${day}-${rand}`;
 };
 
+const SUCCESS_REDIRECT_MS = 4500;
+const FAKE_VERIFY_MS = 1800;
+
 export const Cart = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { cart, removeFromCart, updateQuantity, totalAmount, totalItems, clearCart } = useCart();
-  
+
   const [isCheckout, setIsCheckout] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [notifyFailed, setNotifyFailed] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+
+  // Guards against double submission (state updates lag behind rapid clicks) and stray timers after unmount.
+  const submittingRef = useRef(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const verifyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState<'click_payme' | 'consultation'>('click_payme');
@@ -55,6 +67,17 @@ export const Cart = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => () => {
+    clearTimeout(redirectTimer.current);
+    clearTimeout(verifyTimer.current);
+  }, []);
+
+  const finishAndGoToProfile = () => {
+    clearTimeout(redirectTimer.current);
+    clearCart();
+    navigate('/profile');
+  };
+
   const getAddonTotal = () => {
     let total = 0;
     if (premiumBox) total += 500000; // 500k UZS
@@ -65,8 +88,10 @@ export const Cart = () => {
   const finalAmount = totalAmount + getAddonTotal();
 
   const saveOrderToDatabase = async () => {
-    if (!user) return;
+    if (!user || submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     const orderId = generateOrderId();
 
@@ -79,7 +104,7 @@ export const Cart = () => {
         address: formData.address,
         wishes: formData.wishes,
         items: cart.map(item => ({
-          id: item.id,
+          id: item.productId,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
@@ -125,22 +150,21 @@ export const Cart = () => {
       });
       if (!notified.ok) {
         console.warn('Order saved, but the Telegram notification failed:', notified.error);
+        setNotifyFailed(true);
       }
 
-      setIsSubmitting(false);
       setShowPaymentModal(false);
       setIsSuccess(true);
-      
-      setTimeout(() => {
-        clearCart();
-        navigate('/profile');
-      }, 4500);
 
+      redirectTimer.current = setTimeout(finishAndGoToProfile, SUCCESS_REDIRECT_MS);
     } catch (error) {
       console.error("Order creation failed:", error);
+      setSubmitError(t('cart.submitError'));
+      // Card demo: return to the SMS step (previously the modal stayed on the spinner forever).
+      setPaymentStep('sms');
+    } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
-      setShowPaymentModal(false);
-      alert(`Xatolik yuz berdi: ${getErrorMessage(error) || "Noma'lum xatolik"}`);
     }
   };
 
@@ -150,12 +174,23 @@ export const Cart = () => {
       navigate('/auth', { state: { from: { pathname: '/cart' } } });
       return;
     }
+    if (submittingRef.current) return;
 
     if (paymentMethod === 'click_payme') {
+      // Always open the demo gateway on the card step with a clean SMS field.
+      setSubmitError(null);
+      setPaymentStep('card');
+      setSmsCode('');
       setShowPaymentModal(true);
     } else {
       await saveOrderToDatabase();
     }
+  };
+
+  const closePaymentModal = () => {
+    if (isSubmitting) return;
+    clearTimeout(verifyTimer.current);
+    setShowPaymentModal(false);
   };
 
   if (isSuccess) {
@@ -174,16 +209,23 @@ export const Cart = () => {
           <p className="text-xs text-foreground/60 mb-8 leading-relaxed max-w-md mx-auto italic">
             Xaridingiz uchun tashakkur! Faxr Mebel master-artisanlari buyurtma ustida ish boshlashdi. Tez orada aloqaga chiqamiz.
           </p>
+          {notifyFailed && (
+            <p role="alert" className="mb-8 p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-[11px] text-amber-600 dark:text-amber-400 font-bold flex items-start gap-2 text-left">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{t('cart.notifyFailed')}</span>
+            </p>
+          )}
           <div className="w-full bg-foreground/5 h-1.5 rounded-full overflow-hidden mb-8">
-            <motion.div 
+            <motion.div
               initial={{ width: 0 }}
               animate={{ width: "100%" }}
               transition={{ duration: 4 }}
               className="bg-brand-gold h-full"
             />
           </div>
-          <button 
-            onClick={() => { clearCart(); navigate('/profile'); }}
+          <button
+            type="button"
+            onClick={finishAndGoToProfile}
             className="bg-brand-gold text-black px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-hero hover:scale-105 inline-flex items-center gap-2 shadow-lg shadow-brand-gold/15"
           >
             Kabinetingizga o'tish <ArrowRight className="w-4 h-4" />
@@ -265,18 +307,23 @@ export const Cart = () => {
 
                   <div className="flex items-center justify-center sm:justify-start gap-4 pt-1">
                     <div className="flex items-center gap-2 bg-foreground/5 px-2 py-1 rounded-lg">
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        aria-label="Kamaytirish"
                         className="p-1 hover:bg-white dark:hover:bg-white/10 rounded transition-colors text-foreground"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3 h-3" aria-hidden="true" />
                       </button>
                       <span className="text-xs font-bold w-6 text-center">{item.quantity}</span>
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 hover:bg-white dark:hover:bg-white/10 rounded transition-colors text-foreground"
+                        disabled={item.quantity >= 99}
+                        aria-label="Ko'paytirish"
+                        className="p-1 hover:bg-white dark:hover:bg-white/10 rounded transition-colors text-foreground disabled:opacity-40"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3 h-3" aria-hidden="true" />
                       </button>
                     </div>
                     <span className="text-xs text-foreground/45">x {formatPrice(item.price)}</span>
@@ -514,9 +561,16 @@ export const Cart = () => {
                       <span className="price-tag text-2xl font-bold">{formatPrice(finalAmount)}</span>
                     </div>
                     
-                    <button 
+                    {submitError && !showPaymentModal && (
+                      <p role="alert" className="mb-4 p-3.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[11px] font-bold">
+                        {submitError}
+                      </p>
+                    )}
+
+                    <button
                       type="submit"
                       disabled={isSubmitting}
+                      aria-busy={isSubmitting}
                       className="w-full bg-brand-gold text-black py-4 rounded-xl font-extrabold text-xs uppercase tracking-hero hover:scale-102 shadow-xl shadow-brand-gold/15 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? 'Yuborilmoqda...' : 'Buyurtmani Yakunlash'}
@@ -618,7 +672,7 @@ export const Cart = () => {
                     <div className="flex gap-2 sm:gap-3 pt-1 sm:pt-2">
                       <button
                         type="button"
-                        onClick={() => setShowPaymentModal(false)}
+                        onClick={closePaymentModal}
                         className="w-1/2 bg-white/5 hover:bg-white/10 text-white/80 py-2.5 sm:py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider"
                       >
                         Bekor qilish
@@ -628,9 +682,8 @@ export const Cart = () => {
                         disabled={cardNumber.length < 19 || cardExpiry.length < 5}
                         onClick={() => {
                           setPaymentStep('verifying');
-                          setTimeout(() => {
-                            setPaymentStep('sms');
-                          }, 1800);
+                          clearTimeout(verifyTimer.current);
+                          verifyTimer.current = setTimeout(() => setPaymentStep('sms'), FAKE_VERIFY_MS);
                         }}
                         className="w-1/2 bg-brand-gold disabled:opacity-50 text-black py-2.5 sm:py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-102"
                       >
@@ -675,18 +728,26 @@ export const Cart = () => {
                       />
                     </div>
 
+                    {submitError && (
+                      <p role="alert" className="p-3.5 bg-red-500/10 border border-red-500/25 text-red-400 rounded-xl text-[11px] font-bold">
+                        {submitError}
+                      </p>
+                    )}
+
                     <div className="flex gap-2 sm:gap-3">
                       <button
                         type="button"
-                        onClick={() => setPaymentStep('card')}
-                        className="w-1/2 bg-white/5 hover:bg-white/10 text-white/80 py-2.5 sm:py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+                        disabled={isSubmitting}
+                        onClick={() => { setSubmitError(null); setPaymentStep('card'); }}
+                        className="w-1/2 bg-white/5 hover:bg-white/10 text-white/80 py-2.5 sm:py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider disabled:opacity-50"
                       >
                         Orqaga
                       </button>
                       <button
                         type="button"
-                        disabled={smsCode !== '1234'}
+                        disabled={smsCode !== '1234' || isSubmitting}
                         onClick={async () => {
+                          if (submittingRef.current) return;
                           setPaymentStep('verifying');
                           await saveOrderToDatabase();
                         }}

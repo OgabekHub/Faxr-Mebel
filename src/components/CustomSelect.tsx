@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -13,13 +13,15 @@ interface CustomSelectProps {
   onChange: (value: string) => void;
   options: SelectOption[];
   className?: string;
+  /** Shown when `value` matches no option (e.g. nothing selected yet). */
+  placeholder?: string;
 }
 
-export function CustomSelect({ value, onChange, options, className }: CustomSelectProps) {
+export function CustomSelect({ value, onChange, options, className, placeholder }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find(opt => opt.value === value) || options[0];
+  const selectedOption = options.find(opt => opt.value === value) ?? (placeholder ? undefined : options[0]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -41,7 +43,7 @@ export function CustomSelect({ value, onChange, options, className }: CustomSele
           isOpen ? "border-brand-gold bg-brand-gold/5" : "border-foreground/10 hover:border-foreground/20"
         )}
       >
-        <span className="truncate">{selectedOption?.label}</span>
+        <span className={cn("truncate", !selectedOption && "text-foreground/50")}>{selectedOption?.label ?? placeholder}</span>
         <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", isOpen ? "rotate-180 text-brand-gold" : "text-foreground/50")} />
       </button>
 

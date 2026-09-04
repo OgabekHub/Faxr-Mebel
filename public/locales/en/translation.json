@@ -270,5 +270,20 @@
   "profile.status.quality": "Quality Control",
   "profile.status.qualityDesc": "Inspecting seams and structural load durability.",
   "profile.status.delivery": "Delivery & Assembly",
-  "profile.status.deliveryDesc": "Free delivery and professional assembly at your residence."
+  "profile.status.deliveryDesc": "Free delivery and professional assembly at your residence.",
+  "notFound.teaser": "Page not found",
+  "notFound.title": "Lost your way.",
+  "notFound.desc": "The page you are looking for does not exist or has moved. Head back home and explore the collection.",
+  "notFound.cta": "Back to home",
+  "cart.notifyFailed": "Your order was saved, but the automatic notification to our managers did not go through. We will contact you anyway.",
+  "cart.submitError": "We could not save your order. Please try again.",
+  "bespoke.error": "Something went wrong. Please check your details and try again.",
+  "validation.phone": "Enter the phone number as +998 XX XXX XX XX.",
+  "contact.form.timeRequired": "Please choose a visit time.",
+  "footer.subscribe": "Subscribe",
+  "footer.subscribeError": "Subscription failed. Please try again.",
+  "auth.error.popupBlocked": "Your browser blocked the Google sign-in window. Allow pop-ups and try again.",
+  "auth.error.network": "No internet connection. Check your connection and try again.",
+  "auth.resetNeedEmail": "Enter your email first to reset your password.",
+  "auth.resetSent": "A password reset link has been sent to your email."
 }
