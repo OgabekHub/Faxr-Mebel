@@ -4,10 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X, ShoppingCart, User, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { Link, useLocation } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../lib/firebase';
 
 const languages = [
   { code: 'uz', name: 'UZ' },
@@ -22,9 +21,10 @@ export const Navbar = () => {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { totalItems } = useCart();
+  const { user, isAdmin } = useAuth();
+  const isLoggedIn = user !== null;
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const location = useLocation();
 
   // Circular Theme Wipe Switcher Coords/State
@@ -70,14 +70,6 @@ export const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    // Monitor user authentication state
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsLoggedIn(!!user);
-    });
-    return () => unsubscribe();
-  }, []);
-
   // Close the drawer whenever the route changes (back button, programmatic navigation).
   useEffect(() => {
     setIsOpen(false);
@@ -93,6 +85,7 @@ export const Navbar = () => {
     { name: t('nav.shop'), path: '/shop' },
     { name: t('nav.about'), path: '/about' },
     { name: t('nav.contact'), path: '/contact' },
+    ...(isAdmin ? [{ name: 'Admin', path: '/admin' }] : []),
   ];
 
   const cartBadge = totalItems > 99 ? '99+' : String(totalItems);

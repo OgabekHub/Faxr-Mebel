@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogOut, Heart, ShoppingBag, Send, Award, Clock, CheckCircle } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { cn, formatPrice } from '../lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -15,8 +16,7 @@ export const Profile = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { wishlist } = useWishlist();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist'>('orders');
 
   // Real Orders State
@@ -24,58 +24,42 @@ export const Profile = () => {
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
+  const uid = user?.uid ?? null;
+
+  // One orders listener per signed-in user; the cleanup runs on uid change and unmount (no leak).
   useEffect(() => {
-    let unsubscribeOrders: (() => void) | undefined;
+    if (!uid) {
+      // Signed out: ProtectedRoute redirects to /auth, so nothing to show here.
+      setOrders([]);
+      setSelectedOrderId(null);
+      setOrdersLoading(false);
+      return;
+    }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      // Drop the previous user's orders listener before attaching a new one (leak on account switch / logout).
-      unsubscribeOrders?.();
-      unsubscribeOrders = undefined;
+    setOrdersLoading(true);
+    const q = query(collection(db, 'orders'), where('userId', '==', uid));
 
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        setOrdersLoading(true);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedOrders: Order[] = snapshot.docs.map(doc => ({
+        ...(doc.data() as Omit<Order, 'id'>),
+        id: doc.id,
+      }));
 
-        // Listen to orders matching current user's UID
-        const q = query(
-          collection(db, 'orders'),
-          where('userId', '==', firebaseUser.uid)
-        );
+      // Sort by date (newest first)
+      fetchedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        unsubscribeOrders = onSnapshot(q, (snapshot) => {
-          const fetchedOrders: Order[] = snapshot.docs.map(doc => ({
-            ...(doc.data() as Omit<Order, 'id'>),
-            id: doc.id,
-          }));
-
-          // Sort by date (newest first)
-          fetchedOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-          setOrders(fetchedOrders);
-          if (fetchedOrders.length > 0) {
-            setSelectedOrderId(prev => prev || fetchedOrders[0].id);
-          }
-          setOrdersLoading(false);
-        }, (error) => {
-          console.error("Firestore orders query failed:", error);
-          setOrdersLoading(false);
-        });
-
-      } else {
-        // Signed out: ProtectedRoute redirects to /auth, so nothing to show here.
-        setUser(null);
-        setOrders([]);
-        setSelectedOrderId(null);
-        setOrdersLoading(false);
+      setOrders(fetchedOrders);
+      if (fetchedOrders.length > 0) {
+        setSelectedOrderId(prev => prev || fetchedOrders[0].id);
       }
-      setLoading(false);
+      setOrdersLoading(false);
+    }, (error) => {
+      console.error("Firestore orders query failed:", error);
+      setOrdersLoading(false);
     });
 
-    return () => {
-      unsubscribeAuth();
-      unsubscribeOrders?.();
-    };
-  }, []);
+    return () => unsubscribe();
+  }, [uid]);
 
   const handleLogout = async () => {
     try {

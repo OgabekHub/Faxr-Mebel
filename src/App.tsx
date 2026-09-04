@@ -7,6 +7,8 @@ import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
+import { AuthProvider } from './context/AuthContext';
 import { HelmetProvider } from 'react-helmet-async';
 import './lib/i18n'; // Init i18n
 import { AnimatePresence, motion } from 'motion/react';
@@ -78,7 +80,7 @@ const AppLayout = () => {
             <Route path="/auth" element={<PageWrapper><Auth /></PageWrapper>} />
 
             {/* Protected Routes */}
-            <Route path="/admin" element={<ProtectedRoute><PageWrapper><Admin /></PageWrapper></ProtectedRoute>} />
+            <Route path="/admin" element={<AdminRoute><PageWrapper><Admin /></PageWrapper></AdminRoute>} />
             <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
 
             <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
@@ -97,6 +99,7 @@ export default function App() {
   return (
     <HelmetProvider>
       <ThemeProvider>
+        <AuthProvider>
         <WishlistProvider>
           <CartProvider>
             <Router>
@@ -114,6 +117,7 @@ export default function App() {
             </Router>
           </CartProvider>
         </WishlistProvider>
+        </AuthProvider>
       </ThemeProvider>
     </HelmetProvider>
   );

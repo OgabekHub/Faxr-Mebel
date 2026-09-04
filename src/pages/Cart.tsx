@@ -6,8 +6,8 @@ import { useCart } from '../context/CartContext';
 import { cn, formatPrice } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { postNotify } from '../services/notify';
-import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import { doc, setDoc } from 'firebase/firestore';
 import type { Order } from '../types/domain';
 
@@ -33,7 +33,7 @@ export const Cart = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [notifyFailed, setNotifyFailed] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
 
   // Guards against double submission (state updates lag behind rapid clicks) and stray timers after unmount.
   const submittingRef = useRef(false);
@@ -59,13 +59,6 @@ export const Cart = () => {
     address: '',
     wishes: ''
   });
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => () => {
     clearTimeout(redirectTimer.current);
